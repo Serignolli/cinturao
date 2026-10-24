@@ -1,0 +1,1751 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cinturão · estudo 3D</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,700;12..96,800&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --void: #07060a;
+    --rust: #e2572b;
+    --rust-soft: #ff8a5c;
+    --ice: #9fd8e6;
+    --text: #efe6dd;
+    --muted: #9c8f88;
+    --line: rgba(239, 230, 221, 0.16);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scrollbar-width: none; }
+  html::-webkit-scrollbar { display: none; }
+  body {
+    background:
+      radial-gradient(ellipse 60% 45% at 50% 55%, rgba(226, 87, 43, 0.16), transparent 70%),
+      radial-gradient(ellipse 50% 40% at 85% 10%, rgba(159, 216, 230, 0.07), transparent 70%),
+      var(--void);
+    background-attachment: fixed;
+    color: var(--text);
+    font-family: "Instrument Sans", system-ui, sans-serif;
+    height: 760vh;
+    overflow-x: hidden;
+  }
+  canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; pointer-events: none; }
+  #back { z-index: 0; opacity: 0.55; } /* rocks behind the page stay dimmer so text reads over them */
+  #front { z-index: 2; }
+
+  .page {
+    position: fixed; inset: 0; z-index: 1;
+    user-select: none; -webkit-user-select: none; /* a drag would paint the selection of the swallowed text */
+    display: grid;
+    grid-template-columns: 1.4fr 1fr;
+    grid-template-rows: auto 1fr;
+    gap: 2rem 4rem;
+    padding: clamp(16px, 3vw, 44px) clamp(16px, 5vw, 80px);
+    text-shadow: 0 0 2px rgba(7, 6, 10, 0.95), 0 0 12px rgba(7, 6, 10, 0.9), 0 2px 24px rgba(7, 6, 10, 0.8);
+  }
+  header {
+    grid-column: 1 / -1;
+    display: flex; align-items: center; justify-content: space-between;
+    padding-bottom: 1rem;
+    position: relative;
+  }
+  header .shell { position: absolute; left: 0; right: 0; bottom: 0; height: 1px; background: var(--line); }
+  .logo { font-family: "Bricolage Grotesque", sans-serif; font-weight: 800; font-size: 1.15rem; letter-spacing: 0.08em; }
+  nav { display: flex; gap: 2rem; font-size: 0.95rem; color: var(--muted); }
+  nav a { color: inherit; text-decoration: none; }
+  nav a:hover { color: var(--text); }
+
+  h1 {
+    font-family: "Bricolage Grotesque", sans-serif;
+    font-weight: 800;
+    font-size: clamp(30px, 4.1vw, 68px);
+    line-height: 1.02;
+    letter-spacing: -0.03em;
+    align-self: center;
+    max-width: 19ch;
+  }
+  h1 .accent .w { color: var(--rust); }
+  h1 small { display: block; margin-top: 1.2rem; font-family: "Instrument Sans", sans-serif; font-weight: 500; font-size: clamp(15px, 1.2vw, 18px); letter-spacing: 0.02em; color: var(--muted); }
+  .side { align-self: center; display: flex; flex-direction: column; gap: 1.6rem; max-width: 30rem; }
+  .side p { font-size: clamp(16px, 1.25vw, 19px); line-height: 1.55; color: #ece3da; }
+  .cta {
+    position: relative; align-self: flex-start; isolation: isolate;
+    padding: 0.95rem 1.4rem; color: var(--void); font-weight: 600; text-decoration: none;
+    text-shadow: none;
+  }
+  .cta .shell { position: absolute; inset: 0; background: var(--rust); border-radius: 3px; z-index: -1; }
+
+  .w, .c { display: inline-block; white-space: pre; transform-origin: 50% 50%; }
+
+  #hint {
+    position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 3;
+    font-size: 1.05rem; font-weight: 600; letter-spacing: 0.2em; text-transform: uppercase; color: var(--text);
+    animation: bob 2.2s ease-in-out infinite;
+  }
+  @keyframes bob { 50% { transform: translate(-50%, 6px); } }
+
+  #rail { position: fixed; right: 14px; top: 20vh; height: 60vh; width: 4px; background: var(--line); z-index: 3; }
+  #rail i { position: absolute; left: 0; top: 0; width: 100%; height: 0; background: var(--rust); }
+
+  #hud {
+    position: fixed; left: 14px; bottom: 14px; z-index: 5;
+    font-size: 12px; color: var(--muted);
+    background: rgba(7, 6, 10, 0.75); border: 1px solid var(--line); border-radius: 3px;
+    padding: 0.45rem 0.7rem;
+  }
+  #hud b { color: var(--ice); font-weight: 600; min-width: 5ch; }
+
+  #end {
+    position: fixed; inset: 0; z-index: 3;
+    display: grid; place-content: center; text-align: center; gap: 1.2rem;
+    opacity: 0; pointer-events: none;
+    text-shadow: 0 2px 30px rgba(7, 6, 10, 0.95);
+  }
+  #end h2 { font-family: "Bricolage Grotesque", sans-serif; font-weight: 800; font-size: clamp(56px, 11vw, 180px); letter-spacing: -0.05em; line-height: 0.9; }
+  #end h2 span { color: var(--rust); }
+  #end p { color: #d4c8bf; font-size: 1.1rem; }
+  #end button {
+    justify-self: center; margin-top: 0.6rem; cursor: pointer;
+    font: 600 0.95rem "Instrument Sans", sans-serif; color: var(--text);
+    background: rgba(7,6,10,0.5); border: 1px solid var(--rust); border-radius: 3px; padding: 0.85rem 1.3rem;
+  }
+  #end button:hover { background: var(--rust); color: var(--void); }
+
+  /* ---------- laboratório ---------- */
+  #lab { position: fixed; inset: 0; z-index: 4; pointer-events: none; opacity: 0; visibility: hidden; }
+  #lab.on { visibility: visible; }
+  .lab-head { position: absolute; left: clamp(16px, 5vw, 80px); top: clamp(16px, 3vw, 44px); max-width: 27rem; text-shadow: 0 2px 20px rgba(7, 6, 10, 0.9); }
+  .lab-head h2 { font-family: "Bricolage Grotesque", sans-serif; font-weight: 800; font-size: clamp(30px, 3.6vw, 56px); letter-spacing: -0.03em; line-height: 0.95; }
+  .lab-head h2 span { color: var(--rust); }
+  .lab-head p { color: #d4c8bf; margin-top: 0.7rem; line-height: 1.5; }
+  .lab-note {
+    position: absolute; right: clamp(16px, 4vw, 60px); top: 50%; transform: translateY(-50%);
+    width: min(310px, 32vw); padding: 1.1rem 1.2rem;
+    background: rgba(12, 9, 14, 0.8); border-left: 2px solid var(--rust); pointer-events: auto;
+  }
+  .lab-note h3 { font-family: "Bricolage Grotesque", sans-serif; font-size: 1.4rem; font-weight: 700; margin-bottom: 0.5rem; }
+  .lab-note p { font-size: 0.92rem; line-height: 1.55; color: #d9cec6; }
+  .lab-note .how { color: var(--text); margin-bottom: 0.6rem; }
+  .lab-count { margin-top: 0.9rem; padding-top: 0.7rem; border-top: 1px solid var(--line); color: var(--muted); font-size: 0.82rem; display: flex; gap: 0.9rem; flex-wrap: wrap; }
+  .lab-count b { color: var(--ice); font-weight: 600; }
+  .lab-tools {
+    position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%);
+    display: flex; gap: 6px; flex-wrap: wrap; justify-content: center;
+    width: max-content; max-width: calc(100vw - 32px); pointer-events: auto;
+  }
+  .lab-tools button {
+    display: flex; align-items: center; gap: 0.55rem; cursor: pointer;
+    font: 600 0.9rem "Instrument Sans", sans-serif; color: var(--text);
+    background: rgba(12, 9, 14, 0.82); border: 1px solid var(--line); border-radius: 3px; padding: 0.7rem 0.95rem;
+  }
+  .lab-tools button:hover { border-color: var(--rust-soft); }
+  .lab-tools button[aria-pressed="true"] { background: var(--rust); border-color: var(--rust); color: var(--void); }
+  .lab-tools kbd { font: 600 0.72rem "Instrument Sans", sans-serif; border: 1px solid currentColor; border-radius: 2px; padding: 0 0.3rem; opacity: 0.7; }
+  .lab-tools .sep { width: 1px; background: var(--line); margin: 0 4px; }
+  #lab-tip {
+    position: absolute; left: 50%; top: 24%; transform: translateX(-50%);
+    font-size: 1.05rem; color: var(--text); text-shadow: 0 2px 16px rgba(7, 6, 10, 0.95);
+    transition: opacity 0.6s; animation: bob 2.2s ease-in-out infinite; white-space: nowrap;
+  }
+  html.in-lab, html.in-lab body { touch-action: none; overscroll-behavior: none; user-select: none; -webkit-user-select: none; }
+  html.in-lab #hint, html.in-lab #rail { display: none; }
+
+  @media (max-width: 760px) {
+    .page { grid-template-columns: 1fr; grid-template-rows: auto auto auto; gap: 1.4rem; }
+    nav { gap: 1rem; font-size: 0.85rem; }
+    .lab-head p { display: none; }
+    .lab-note { top: auto; bottom: 150px; transform: none; left: 16px; right: 16px; width: auto; padding: 0.7rem 0.9rem; }
+    .lab-note h3 { font-size: 1.1rem; margin-bottom: 0.3rem; }
+    .lab-note p { font-size: 0.8rem; }
+    .lab-note p:not(.how) { display: none; }
+    .lab-tools { bottom: 58px; }
+    .lab-tools button { padding: 0.6rem 0.7rem; font-size: 0.82rem; }
+  }
+  @media (hover: none) { .lab-tools kbd { display: none; } }
+</style>
+</head>
+<body>
+<canvas id="back"></canvas>
+
+<main class="page">
+  <header>
+    <div class="logo" data-split="chars">CINTURÃO</div>
+    <nav>
+      <a href="#" id="nav-lab" data-split="words">Laboratório</a>
+    </nav>
+    <div class="shell"></div>
+  </header>
+
+  <h1><span data-split="words">“Não existe linha reta, nem no espaço e nem no tempo. Tudo é</span> <span class="accent" data-split="words">uma curva que se fecha sobre si mesma</span> <span data-split="words">se lhe dermos o tempo suficiente.”</span><small data-split="words">— Albert Einstein</small></h1>
+
+  <div class="side">
+    <p data-split="words">Este site é só um estudo de animação 3D no navegador. Ao rolar, a câmera desce e a própria página se desfaz em pedras que orbitam; no fim, um laboratório deixa você arremessar, puxar e explodir essas pedras.</p>
+    <a class="cta" href="#" id="cta"><span data-split="words">Começar a queda ↓</span><span class="shell"></span></a>
+  </div>
+
+</main>
+
+<canvas id="front"></canvas>
+
+<div id="hint">role ↓</div>
+<div id="rail"><i></i></div>
+<div id="hud">
+  <b id="fps">-- fps</b>
+</div>
+
+<div id="end">
+  <h2>Engolido<span>.</span></h2>
+  <p>A página virou cinturão. Continue rolando para descer ao núcleo.</p>
+  <button id="back-top">Voltar à superfície ↑</button>
+</div>
+
+<div id="lab" aria-hidden="true">
+  <div class="lab-head">
+    <h2>Laboratório do núcleo<span>.</span></h2>
+    <p>O que sobrou da página orbita um planeta. Pegue, puxe, exploda: cada pedra tem massa, e o choque decide se ela quica ou se parte.</p>
+  </div>
+  <aside class="lab-note">
+    <h3 id="note-title"></h3>
+    <p class="how" id="note-how"></p>
+    <p id="note-text"></p>
+    <div class="lab-count"><span><b id="c-ring">0</b> no anel</span><span><b id="c-free">0</b> soltas</span><span><b id="c-hits">0</b> impactos</span></div>
+  </aside>
+  <div class="lab-tools" role="toolbar" aria-label="Ferramentas do laboratório">
+    <button data-tool="grab" aria-pressed="true"><kbd>1</kbd>Arremessar</button>
+    <button data-tool="well" aria-pressed="false"><kbd>2</kbd>Gravidade</button>
+    <button data-tool="boom" aria-pressed="false"><kbd>3</kbd>Detonar</button>
+    <button id="slow" aria-pressed="false"><kbd>4</kbd>Câmera lenta</button>
+    <span class="sep"></span>
+    <button id="reset"><kbd>R</kbd>Restaurar</button>
+    <button id="lab-up">↑ Superfície</button>
+  </div>
+  <div id="lab-tip">Segure uma pedra e jogue no planeta</div>
+</div>
+
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+</script>
+<script type="module">
+import * as THREE from 'three';
+
+// ---------- util ----------
+const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const smooth = (a, b, v) => { const t = clamp((v - a) / (b - a)); return t * t * (3 - 2 * t); };
+let seed = 7;
+const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+const gauss = () => { let s = 0; for (let i = 0; i < 4; i++) s += rnd(); return (s - 2) / 0.58; };
+
+// ---------- renderers: one behind the DOM, one in front ----------
+// Act I draws the page on the plane z=0 in two passes. The lab later takes over the back
+// canvas on its own, while the front one fades out.
+const pr = Math.min(devicePixelRatio, 1.5);
+const mk = id => {
+  const r = new THREE.WebGLRenderer({ canvas: document.getElementById(id), antialias: false, alpha: true, powerPreference: 'high-performance' });
+  r.setPixelRatio(pr);
+  r.setSize(innerWidth, innerHeight, false);
+  r.setClearColor(0x000000, 0);
+  return r;
+};
+const backR = mk('back'), frontR = mk('front');
+const frontPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
+const backPlane = new THREE.Plane(new THREE.Vector3(0, 0, -1), 0);
+backR.clippingPlanes = [backPlane];
+frontR.clippingPlanes = [frontPlane];
+const backCanvas = document.getElementById('back'), frontCanvas = document.getElementById('front');
+const pageEl = document.querySelector('.page');
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(42, innerWidth / innerHeight, 0.05, 600);
+
+// ---------- stars ----------
+const stars = (() => {
+  const n = 1200, p = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) {
+    const v = new THREE.Vector3(gauss(), gauss(), gauss()).normalize().multiplyScalar(140 + rnd() * 120);
+    p.set([v.x, v.y, v.z], i * 3);
+  }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(p, 3));
+  return new THREE.Points(g, new THREE.PointsMaterial({ color: 0xe9e2ff, size: 0.55, transparent: true, opacity: 0.75 }));
+})();
+scene.add(stars);
+
+// ---------- belt: pre-rendered sprites (impostors) ----------
+// Each rock model is rendered once at load time, from FRAMES angles, into a sprite sheet.
+// At runtime every rock is a camera-facing quad showing the right frame, so the GPU
+// copies pixels instead of shading thousands of 3D faces every frame.
+const ring = new THREE.Group(); scene.add(ring);
+
+function rockGeo(s) {
+  const g = new THREE.IcosahedronGeometry(1, 3);
+  const pos = g.attributes.position, v = new THREE.Vector3();
+  const sx = 0.75 + rnd() * 0.5, sy = 0.65 + rnd() * 0.45, sz = 0.8 + rnd() * 0.4;
+  const craters = Array.from({ length: 6 }, () => ({
+    c: new THREE.Vector3(gauss(), gauss(), gauss()).normalize(), r: 0.25 + rnd() * 0.35, d: 0.05 + rnd() * 0.08,
+  }));
+  const grey = new Float32Array(pos.count * 3);
+  for (let i = 0; i < pos.count; i++) {
+    v.fromBufferAttribute(pos, i).normalize();
+    let d = 1
+      + 0.22 * Math.sin(v.x * 3.1 + s) * Math.sin(v.y * 2.7 + s * 1.7) * Math.sin(v.z * 3.3 + s * 0.6)
+      + 0.1 * Math.sin(v.x * 7.3 + v.y * 5.1 + s * 3.1)
+      + 0.035 * Math.sin(v.x * 17 + s) * Math.sin(v.y * 15 + s * 2) * Math.sin(v.z * 16 + s * 3)
+      - 0.12 * Math.max(0, Math.sin(v.y * 4.2 - v.z * 3.6 + s));
+    let shade = 0.82 + 0.18 * Math.sin(v.x * 9 + v.z * 7 + s * 5);
+    for (const k of craters) {
+      const t = 1 - v.distanceTo(k.c) / k.r;
+      if (t > 0) { d -= k.d * t * t * (3 - 2 * t); shade -= 0.25 * t; }
+      else if (t > -0.2) d += k.d * 0.35 * (1 - Math.abs(t + 0.1) / 0.1); // raised rim
+    }
+    pos.setXYZ(i, v.x * d * sx, v.y * d * sy, v.z * d * sz);
+    grey.fill(Math.max(0.4, shade), i * 3, i * 3 + 3);
+  }
+  g.setAttribute('color', new THREE.BufferAttribute(grey, 3));
+  g.computeVertexNormals();
+  return g;
+}
+
+// Sprite sheet: each cell holds one rock at one angle. Instead of a lit picture, a cell
+// stores the rock's shape (normal x/y in R/G), its surface shade (B) and coverage (A),
+// so lighting is computed at runtime and stays consistent however the sprite is turned.
+const KINDS = 6, FRAMES = 32, CELL = 160, FIT = 1.75;
+const COLS = 16, ROWS = KINDS * FRAMES / COLS;
+
+function bakeAtlas() {
+  const W = COLS * CELL, H = ROWS * CELL;
+  // Each rock is rendered at twice the cell size and averaged down, so the outline keeps
+  // sub-pixel coverage and stays smooth when a sprite is blown up close to the camera.
+  // One kind at a time, in an 8 x 4 sheet that stays under 4096 px on any GPU.
+  const SS = 2, SC = CELL * SS, GC = 8, GR = FRAMES / GC, SW = GC * SC, SH = GR * SC;
+  const r = new THREE.WebGLRenderer({ alpha: true });
+  r.setPixelRatio(1); r.setSize(1, 1, false);
+  const rtN = new THREE.WebGLRenderTarget(SW, SH), rtA = new THREE.WebGLRenderTarget(SW, SH);
+  rtN.scissorTest = rtA.scissorTest = true;
+  const s = new THREE.Scene();
+  const cam = new THREE.OrthographicCamera(-FIT, FIT, FIT, -FIT, 0.1, 10); cam.position.z = 5;
+  const normalMat = new THREE.MeshNormalMaterial({ flatShading: true });
+  const shadeMat = new THREE.MeshBasicMaterial({ vertexColors: true });
+  const axis = new THREE.Vector3(0.35, 1, 0.2).normalize(), spinQ = new THREE.Quaternion();
+  const pass = (rt, mat, clear, mesh, x, y) => {
+    rt.viewport.set(x, y, SC, SC); rt.scissor.set(x, y, SC, SC);
+    mesh.material = mat; r.setClearColor(clear, 0);
+    r.setRenderTarget(rt); r.render(s, cam);
+  };
+  const n = new Uint8Array(W * H * 4), bn = new Uint8Array(SW * SH * 4), ba = new Uint8Array(SW * SH * 4);
+  for (let k = 0; k < KINDS; k++) {
+    const mesh = new THREE.Mesh(rockGeo(k * 2.3 + 1), normalMat);
+    mesh.rotation.set(rnd() * 3, rnd() * 3, 0);
+    const base = mesh.quaternion.clone();
+    s.add(mesh);
+    for (let f = 0; f < FRAMES; f++) {
+      mesh.quaternion.copy(spinQ.setFromAxisAngle(axis, f / FRAMES * Math.PI * 2)).multiply(base);
+      pass(rtN, normalMat, 0x8080ff, mesh, (f % GC) * SC, Math.floor(f / GC) * SC);
+      pass(rtA, shadeMat, 0x000000, mesh, (f % GC) * SC, Math.floor(f / GC) * SC);
+    }
+    s.remove(mesh); mesh.geometry.dispose();
+    r.readRenderTargetPixels(rtN, 0, 0, SW, SH, bn);
+    r.readRenderTargetPixels(rtA, 0, 0, SW, SH, ba);
+    // 2x2 box filter into the atlas cell: normal xy (R,G), shade x coverage (B), coverage (A)
+    for (let f = 0; f < FRAMES; f++) {
+      const i = k * FRAMES + f, dx = (i % COLS) * CELL, dy = Math.floor(i / COLS) * CELL;
+      const sx = (f % GC) * SC, sy = Math.floor(f / GC) * SC;
+      for (let y = 0; y < CELL; y++) for (let x = 0; x < CELL; x++) {
+        let R = 0, G = 0, B = 0, A = 0;
+        for (let oy = 0; oy < SS; oy++) for (let ox = 0; ox < SS; ox++) {
+          const o = ((sy + y * SS + oy) * SW + sx + x * SS + ox) * 4;
+          R += bn[o]; G += bn[o + 1]; B += ba[o]; A += ba[o + 3];
+        }
+        const o = ((dy + y) * W + dx + x) * 4, q = SS * SS;
+        n[o] = R / q; n[o + 1] = G / q; n[o + 2] = B / q; n[o + 3] = A / q;
+      }
+    }
+  }
+  rtN.dispose(); rtA.dispose(); normalMat.dispose(); shadeMat.dispose();
+  r.dispose(); r.forceContextLoss();
+  const tex = new THREE.DataTexture(n, W, H, THREE.RGBAFormat);
+  tex.minFilter = THREE.LinearMipmapLinearFilter; tex.magFilter = THREE.LinearFilter;
+  tex.generateMipmaps = true; tex.needsUpdate = true;
+  return tex;
+}
+
+// light colours already divided by PI, matching three's Lambert so the look stays the same
+const lin = (hex, k) => new THREE.Color(hex).multiplyScalar(k / Math.PI);
+const KEY_DIR = new THREE.Vector3(9, 7, 10).normalize(), RIM_DIR = new THREE.Vector3(-10, -3, -8).normalize();
+const CORE = new THREE.Vector3(0, 0, -1.5);
+const uni = {
+  uPhase: { value: 0 }, uTime: { value: 0 },
+  uR: { value: 9 }, uSpread: { value: 1.3 }, uThick: { value: 0.28 }, uSize: { value: 1 },
+  uSide: { value: 0 }, uGlow: { value: 1 }, tAtlas: { value: bakeAtlas() },
+  uKeyDir: { value: new THREE.Vector3() }, uRimDir: { value: new THREE.Vector3() }, uCoreView: { value: new THREE.Vector3() },
+  uKeyCol: { value: lin(0xffc29e, 3.2) }, uRimCol: { value: lin(0x7cc8ff, 1.6) },
+  uAmb: { value: lin(0x4a3442, 1.6) }, uCoreCol: { value: lin(0xff5a24, 260) },
+};
+// sampling a cell of the sprite sheet, shared by both sprite shaders
+const CELL_GLSL = `
+const float FRAMES = ${FRAMES}.0, COLS = ${COLS}.0, ROWS = ${ROWS}.0;
+vec2 cellUv(float i, vec2 st) { return (vec2(mod(i, COLS), floor(i / COLS)) + st) / vec2(COLS, ROWS); }`;
+const spriteMat = new THREE.ShaderMaterial({
+  uniforms: uni, transparent: true, depthWrite: true,
+  vertexShader: `
+attribute vec4 aOrbit; // start angle, radial offset, height, angular speed
+attribute vec4 aSpin;  // frames per second, frame offset, kind, in-plane rotation
+attribute float aSize;
+attribute vec3 aColor;
+uniform float uPhase, uTime, uR, uSpread, uThick, uSize, uSide;
+uniform vec3 uCoreView;
+varying vec2 vUv0, vUv1, vRot;
+varying float vMix, vCoreAtt;
+varying vec3 vColor, vCoreDir;
+${CELL_GLSL}
+void main() {
+  float ang = aOrbit.x + uPhase * aOrbit.w;
+  float rr = uR + aOrbit.y * uSpread * 0.5;
+  vec4 world = modelMatrix * vec4(cos(ang) * rr, sin(ang) * rr, aOrbit.z * uThick * 0.5, 1.0);
+  // uSide picks which half of the belt this pass draws: behind (-1) or in front (+1) of the page
+  if (uSide * world.z < 0.0) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
+  float f = mod(aSpin.y + uTime * aSpin.x, FRAMES), f0 = floor(f);
+  vMix = f - f0;
+  float base = aSpin.z * FRAMES;
+  vUv0 = cellUv(base + f0, uv);
+  vUv1 = cellUv(base + mod(f0 + 1.0, FRAMES), uv);
+  vRot = vec2(cos(aSpin.w), sin(aSpin.w));
+  vec4 mv = viewMatrix * world;
+  vCoreDir = normalize(uCoreView - mv.xyz);
+  float d = length(world.xyz - vec3(0.0, 0.0, -1.5));
+  vCoreAtt = min(1.0 / (d * d), 0.04);
+  mv.xy += mat2(vRot.x, vRot.y, -vRot.y, vRot.x) * position.xy * aSize * uSize * ${(FIT * 2).toFixed(2)};
+  gl_Position = projectionMatrix * mv;
+  vColor = aColor;
+}`,
+  fragmentShader: `
+uniform sampler2D tAtlas;
+uniform vec3 uKeyDir, uRimDir, uKeyCol, uRimCol, uAmb, uCoreCol;
+uniform float uGlow;
+varying vec2 vUv0, vUv1, vRot;
+varying float vMix, vCoreAtt;
+varying vec3 vColor, vCoreDir;
+void main() {
+  vec4 t = mix(texture2D(tAtlas, vUv0), texture2D(tAtlas, vUv1), vMix);
+  // the edge stays about one screen pixel wide at any zoom (fwidth), so close rocks stay crisp;
+  // the ink line is the old coverage band far away, and at most ~2 px when a rock is close
+  float aw = max(fwidth(t.a), 0.02);
+  float alpha = smoothstep(0.38 - aw, 0.38 + aw, t.a);
+  if (alpha < 0.01) discard;
+  float ink = mix(0.25, 1.0, max(smoothstep(0.42, 0.8, t.a), smoothstep(1.2, 2.4, (t.a - 0.38) / aw)));
+  vec2 nxy = mat2(vRot.x, vRot.y, -vRot.y, vRot.x) * (t.rg * 2.0 - 1.0);
+  vec3 n = vec3(nxy, sqrt(max(0.0, 1.0 - dot(nxy, nxy))));
+  float shade = t.b / max(t.a, 0.01);
+  vec3 light = uAmb
+    + uKeyCol * max(dot(n, uKeyDir), 0.0)
+    + uRimCol * max(dot(n, uRimDir), 0.0)
+    + uCoreCol * max(dot(n, vCoreDir), 0.0) * vCoreAtt * uGlow;
+  gl_FragColor = vec4(vColor * shade * light * ink, alpha);
+  #include <colorspace_fragment>
+}`,
+});
+
+// Rocks never pass through each other. The belt moves in lanes (ringlets): rocks in the
+// same lane orbit at the same speed, so their spacing never changes; rocks in different
+// lanes slide past each other, so they must not share any radius/height. Both rules are
+// checked against the shapes the belt takes while scrolling (R, spread, thickness, size).
+const BELT_N = 2400, LANE = 0.6, HIT = 1.0, RSPREAD = 1.25, BUCKET = 0.25, MAX_SIZE = 0.6;
+const STATES = [0, 0.25, 0.5, 0.75, 1].map(t => [6.2 - t, 1.3 + t, 0.28 + 0.47 * t, 1 + 0.35 * t]);
+const placed = [], buckets = new Map();
+function fits(c) {
+  // in radius, rocks can only touch if their offsets are this close (smallest spread is 1.3)
+  const reach = (c.size + MAX_SIZE) * HIT * 1.35 / 0.65;
+  for (let b = Math.floor((c.rOff - reach) / BUCKET), e = Math.floor((c.rOff + reach) / BUCKET); b <= e; b++) {
+    for (const o of buckets.get(b) || []) {
+      const maxNeed = (c.size + o.size) * HIT * 1.35;
+      if (Math.abs(c.rOff - o.rOff) * 0.65 >= maxNeed || Math.abs(c.h - o.h) * 0.14 >= maxNeed) continue;
+      const same = o.lane === c.lane;
+      for (const [R, sp, th, sm] of STATES) {
+        const r1 = R + c.rOff * sp * 0.5, r2 = R + o.rOff * sp * 0.5, dz = (c.h - o.h) * th * 0.5;
+        const need = (c.size + o.size) * HIT * sm * 1.03; // small margin between the checked states
+        const d2 = same ? r1 * r1 + r2 * r2 - 2 * r1 * r2 * Math.cos(c.a - o.a) + dz * dz : (r1 - r2) ** 2 + dz * dz;
+        if (d2 < need * need) return false;
+      }
+    }
+  }
+  return true;
+}
+const sizes = Array.from({ length: BELT_N }, () => rnd() < 0.04 ? 0.3 + rnd() * 0.3 : 0.04 + Math.pow(rnd(), 2.2) * 0.2)
+  .sort((a, b) => b - a); // big ones first, small ones fill the gaps
+for (let size of sizes) {
+  place: for (let shrink = 0; shrink < 3; shrink++, size *= 0.8) {
+    for (let tries = 0; tries < 12; tries++) {
+      const rOff = gauss() * RSPREAD, c = { rOff, h: gauss(), a: rnd() * Math.PI * 2, size, lane: Math.round(rOff / LANE) };
+      if (!fits(c)) continue;
+      placed.push(c);
+      const k = Math.floor(rOff / BUCKET);
+      buckets.has(k) ? buckets.get(k).push(c) : buckets.set(k, [c]);
+      break place;
+    }
+  }
+}
+
+const palette = [0x8a7a70, 0x6e625c, 0xa2856f, 0x5d5552, 0xb46a48, 0x7b6e6a];
+const col = new THREE.Color();
+{
+  const n = placed.length;
+  const geo = new THREE.InstancedBufferGeometry().copy(new THREE.PlaneGeometry(1, 1));
+  geo.instanceCount = n;
+  const orbit = new Float32Array(n * 4), spin = new Float32Array(n * 4), size = new Float32Array(n), color = new Float32Array(n * 3);
+  placed.forEach((c, i) => {
+    orbit.set([c.a, c.rOff, c.h, 0.085 * (1 - 0.045 * c.lane)], i * 4);
+    spin.set([(rnd() - 0.5) * 8, rnd() * FRAMES, Math.floor(rnd() * KINDS), rnd() * Math.PI * 2], i * 4);
+    size[i] = c.size;
+    col.setHex(palette[Math.floor(rnd() * palette.length)]).multiplyScalar(0.75 + rnd() * 0.5);
+    color.set([col.r, col.g, col.b], i * 3);
+  });
+  geo.setAttribute('aOrbit', new THREE.InstancedBufferAttribute(orbit, 4));
+  geo.setAttribute('aSpin', new THREE.InstancedBufferAttribute(spin, 4));
+  geo.setAttribute('aSize', new THREE.InstancedBufferAttribute(size, 1));
+  geo.setAttribute('aColor', new THREE.InstancedBufferAttribute(color, 3));
+  const belt = new THREE.Mesh(geo, spriteMat);
+  belt.frustumCulled = false;
+  ring.add(belt);
+}
+
+// dust
+const dust = (() => {
+  const n = 2500, p = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) {
+    const a = rnd() * Math.PI * 2, r = 1 + gauss() * 0.2;
+    p.set([Math.cos(a) * r, Math.sin(a) * r, gauss() * 0.04], i * 3);
+  }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(p, 3));
+  const pts = new THREE.Points(g, new THREE.PointsMaterial({
+    color: 0xffa27a, size: 0.05, transparent: true, opacity: 0.55, depthWrite: false, blending: THREE.AdditiveBlending,
+  }));
+  ring.add(pts);
+  return pts;
+})();
+
+// ---------- DOM: split text into pieces ----------
+const pieces = [];
+document.querySelectorAll('[data-split]').forEach(el => {
+  const mode = el.dataset.split, text = el.textContent;
+  el.setAttribute('aria-label', text);
+  el.textContent = '';
+  text.split(/(\s+)/).forEach(tok => {
+    if (!tok) return;
+    if (/^\s+$/.test(tok)) { el.append(document.createTextNode(' ')); return; }
+    const w = document.createElement('span'); w.className = 'w'; w.setAttribute('aria-hidden', 'true');
+    if (mode === 'chars') {
+      for (const ch of tok) { const c = document.createElement('span'); c.className = 'c'; c.textContent = ch; w.append(c); pieces.push({ el: c }); }
+    } else { w.textContent = tok; pieces.push({ el: w }); }
+    el.append(w);
+  });
+});
+const shells = [...document.querySelectorAll('.shell')];
+
+for (const p of pieces) {
+  p.ringAng = rnd() * Math.PI * 2;
+  p.ringR = 0.92 + rnd() * 0.22;
+  p.ringH = gauss() * 0.15;
+  p.spin = (rnd() - 0.5) * 900;
+  p.jitter = rnd() * 0.1;
+  p.state = 0; // 0 home, 1 flying, 2 gone
+}
+
+function measure() {
+  for (const p of pieces) { p.el.style.transform = ''; p.el.style.opacity = ''; p.state = 0; }
+  const cx = innerWidth / 2, cy = innerHeight / 2;
+  let maxD = 1;
+  for (const p of pieces) {
+    const r = p.el.getBoundingClientRect();
+    p.hx = r.left + r.width / 2; p.hy = r.top + r.height / 2;
+    p.dist = Math.hypot(p.hx - cx, p.hy - cy);
+    maxD = Math.max(maxD, p.dist);
+  }
+  // outer pieces sit closer to the belt, so they get pulled in first
+  for (const p of pieces) p.delay = (1 - p.dist / maxD) * 0.42 + p.jitter;
+}
+
+// =====================================================================================
+// LAB: a planet in the core, a ring of rocks around it, and tools to wreck it
+// =====================================================================================
+
+// Physics only uses plain numbers (no three.js), so it can be tested outside the browser.
+// <physics>
+const TAU = Math.PI * 2, PR = 2.2, GM = 5.3, RAD = 0.9, QB = 0.85, MAXD = 420;
+
+// The ring is calm by construction, like the belt in act I: rocks share lanes, every lane
+// is a circular orbit with its own slight tilt. Two circles of different radius never meet
+// (whatever their tilt), and rocks inside a lane move together, so calm rocks never touch.
+// They run "on rails" (angle = start + speed * time, no integration) until something
+// disturbs them; then they become free bodies under real gravity.
+const lanes = [], slots = [];
+{
+  let r = 4.3;
+  while (r < 8.8) {
+    const k = rnd();
+    const maxS = k < 0.18 ? 0.2 + rnd() * 0.17 : k < 0.5 ? 0.035 + rnd() * 0.04 : 0.07 + rnd() * 0.12;
+    const lr = r + maxS * RAD;
+    if (lr > 6.1 && lr < 6.75) { r = 6.75; continue; } // an empty gap, like Saturn's Cassini division
+    const tilt = (rnd() - 0.5) * 0.07, node = rnd() * TAU;
+    const kx = Math.cos(node), kz = Math.sin(node), c = Math.cos(tilt), s = Math.sin(tilt);
+    // Rodrigues rotation: tip the ring plane (y = 0) by `tilt` around the in-plane axis k
+    const tip = (x, y, z) => {
+      const d = kx * x + kz * z, cx = -kz * y, cy = kz * x - kx * z, cz = kx * y;
+      return [x * c + cx * s + kx * d * (1 - c), y * c + cy * s, z * c + cz * s + kz * d * (1 - c)];
+    };
+    const lane = { r: lr, w: Math.sqrt(GM / lr ** 3), U: tip(1, 0, 0), V: tip(0, 0, -1) };
+    lanes.push(lane);
+    const sparse = rnd() * 0.5, list = [];
+    let ang = 0, prev = 0;
+    for (;;) {
+      const sz = maxS * (0.45 + 0.55 * rnd());
+      if (list.length) {
+        ang += ((RAD * (prev + sz) + 0.03) * 1.01 + rnd() * sparse) / lr;
+        // the gap back to the first rock has to be wide enough as well
+        if (ang + (RAD * (sz + list[0].s) + 0.03) * 1.01 / lr > TAU) break;
+      }
+      list.push({ ang, s: sz }); prev = sz;
+    }
+    const a0 = rnd() * TAU;
+    for (const o of list) slots.push({ lane, a0: a0 + o.ang, s: o.s, alive: true, grow: 1, respawnAt: 0 });
+    r = lr + maxS * RAD + 0.03 + rnd() * 0.08;
+  }
+}
+const S = slots.length, NB = S + MAXD;
+const SX = new Float32Array(S * 3);
+let simT = 0;
+function slotPos(i, T) {
+  const sl = slots[i], L = sl.lane, a = sl.a0 + L.w * T, ca = Math.cos(a) * L.r, sa = Math.sin(a) * L.r, o = i * 3;
+  SX[o] = ca * L.U[0] + sa * L.V[0]; SX[o + 1] = ca * L.U[1] + sa * L.V[1]; SX[o + 2] = ca * L.U[2] + sa * L.V[2];
+}
+function slotVel(i, T) {
+  const sl = slots[i], L = sl.lane, a = sl.a0 + L.w * T, v = L.r * L.w, ca = Math.cos(a) * v, sa = -Math.sin(a) * v;
+  return [sa * L.U[0] + ca * L.V[0], sa * L.U[1] + ca * L.V[1], sa * L.U[2] + ca * L.V[2]];
+}
+for (let i = 0; i < S; i++) slotPos(i, 0);
+
+// per-rock look, indexed like the render buffer: calm slots first, then free bodies
+const SPIN = new Float32Array(NB * 4), COLOR = new Float32Array(NB * 3);
+let visDirty = true;
+{
+  const toLin = c => (c < 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+  const PAL = [0x8a7a70, 0x6e625c, 0xa2856f, 0x5d5552, 0xb46a48, 0x7b6e6a];
+  for (let i = 0; i < S; i++) {
+    const hex = PAL[Math.floor(rnd() * PAL.length)], k = 0.75 + rnd() * 0.5;
+    COLOR.set([toLin((hex >> 16) / 255) * k, toLin(((hex >> 8) & 255) / 255) * k, toLin((hex & 255) / 255) * k], i * 3);
+    SPIN.set([(rnd() - 0.5) * 6, rnd() * FRAMES, Math.floor(rnd() * KINDS), rnd() * TAU], i * 4);
+  }
+}
+
+const D = Array.from({ length: MAXD }, () => ({ on: false, x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, s: 0, heat: 0, life: Infinity, group: 0, grace: 0, held: false }));
+const free = [];
+for (let j = MAXD - 1; j >= 0; j--) free.push(j);
+const well = { on: false, x: 0, y: 0, z: 0, k: 0 };
+const hold = { x: 0, y: 0, z: 0 };
+const stats = { impacts: 0, breaks: 0 };
+let held = -1, groupSeq = 0, respawnCursor = 0;
+
+function kill(j) {
+  const b = D[j];
+  if (!b.on) return;
+  b.on = false; b.held = false;
+  if (held === j) held = -1;
+  free.push(j);
+}
+// when the pool is full, the smallest loose pebble makes room
+function alloc() {
+  if (free.length) return free.pop();
+  let best = -1, bs = Infinity;
+  for (let j = 0; j < MAXD; j++) { const b = D[j]; if (b.on && !b.held && b.s < bs) { bs = b.s; best = j; } }
+  if (best < 0) return -1;
+  kill(best);
+  return free.pop();
+}
+// a calm rock leaves its lane and becomes a free body with the same look and velocity
+function wake(i) {
+  const sl = slots[i];
+  if (!sl.alive || sl.grow <= 0) return -1;
+  const j = alloc();
+  if (j < 0) return -1;
+  slotPos(i, simT);
+  const v = slotVel(i, simT), b = D[j], o = i * 3;
+  Object.assign(b, { on: true, x: SX[o], y: SX[o + 1], z: SX[o + 2], vx: v[0], vy: v[1], vz: v[2], s: sl.s * sl.grow, heat: 0, life: Infinity, group: 0, grace: 0, held: false });
+  SPIN.copyWithin((S + j) * 4, i * 4, i * 4 + 4);
+  COLOR.copyWithin((S + j) * 3, i * 3, i * 3 + 3);
+  sl.alive = false; sl.respawnAt = simT + 14 + rnd() * 14;
+  visDirty = true;
+  return j;
+}
+// breaks a free body into hot fragments (or vaporises it if it is already small)
+function shatter(j, px = 0, py = 0, pz = 0) {
+  const p = D[j];
+  if (!p.on) return;
+  const { x, y, z, vx, vy, vz, s } = p, o = (S + j) * 3;
+  const cr = COLOR[o], cg = COLOR[o + 1], cb = COLOR[o + 2];
+  kill(j);
+  stats.breaks++;
+  fx.burst(x, y, z, s);
+  if (s < 0.07) return;
+  const n = Math.min(9, 3 + Math.floor(s * 20)), g = ++groupSeq;
+  for (let f = 0; f < n; f++) {
+    let dx = gauss(), dy = gauss(), dz = gauss();
+    const l = Math.hypot(dx, dy, dz) || 1, fs = s * (0.3 + rnd() * 0.28), ej = 0.35 + rnd() * 0.75;
+    dx /= l; dy /= l; dz /= l;
+    const k = alloc();
+    if (k < 0) break;
+    Object.assign(D[k], {
+      on: true, x: x + dx * s * 0.5, y: y + dy * s * 0.5, z: z + dz * s * 0.5,
+      vx: vx + dx * ej + px, vy: vy + dy * ej + py, vz: vz + dz * ej + pz,
+      s: fs, heat: 1, life: fs < 0.05 ? 4 + rnd() * 5 : Infinity, group: g, grace: simT + 0.4, held: false,
+    });
+    SPIN.set([(rnd() - 0.5) * 16, rnd() * FRAMES, Math.floor(rnd() * KINDS), rnd() * TAU], (S + k) * 4);
+    COLOR.set([cr, cg, cb], (S + k) * 3);
+  }
+  visDirty = true;
+}
+// Two free bodies touching: impulse along the contact normal, then each one breaks if the
+// energy it absorbs (relative speed², weighted by the other's share of the mass) passes QB.
+function resolve(j, k) {
+  const a = D[j], b = D[k];
+  if (!a.on || !b.on) return;
+  if (a.held || b.held) return; // the rock being aimed is lifted out of the ring
+  if (a.group && a.group === b.group && simT < a.grace) return; // fresh siblings fly apart first
+  let dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z;
+  const minD = RAD * (a.s + b.s), d2 = dx * dx + dy * dy + dz * dz;
+  if (d2 >= minD * minD) return;
+  const d = Math.sqrt(d2) || 1e-4;
+  dx /= d; dy /= d; dz /= d;
+  const ma = a.s ** 3, mb = b.s ** 3, mt = ma + mb;
+  const rvn = (b.vx - a.vx) * dx + (b.vy - a.vy) * dy + (b.vz - a.vz) * dz;
+  let breakA = false, breakB = false;
+  if (rvn < 0) {
+    const v2 = rvn * rvn;
+    breakA = mb / mt * v2 > QB;
+    breakB = ma / mt * v2 > QB;
+    const J = -1.35 * rvn / (1 / ma + 1 / mb); // restitution 0.35
+    a.vx -= J / ma * dx; a.vy -= J / ma * dy; a.vz -= J / ma * dz;
+    b.vx += J / mb * dx; b.vy += J / mb * dy; b.vz += J / mb * dz;
+  }
+  const push = minD - d;
+  a.x -= dx * push * mb / mt; a.y -= dy * push * mb / mt; a.z -= dz * push * mb / mt;
+  b.x += dx * push * ma / mt; b.y += dy * push * ma / mt; b.z += dz * push * ma / mt;
+  if (breakA) shatter(j);
+  if (breakB) shatter(k);
+}
+
+// spatial hash: only free bodies look for contacts, against everything around them
+const HS = 8192, GRID = 0.8, head = new Int32Array(HS), nxt = new Int32Array(NB);
+const cellKey = (ix, iy, iz) => ((ix * 73856093) ^ (iy * 19349663) ^ (iz * 83492791)) & (HS - 1);
+function collide() {
+  head.fill(-1);
+  for (let i = 0; i < S; i++) {
+    if (!slots[i].alive) continue;
+    const k = cellKey(Math.floor(SX[i * 3] / GRID), Math.floor(SX[i * 3 + 1] / GRID), Math.floor(SX[i * 3 + 2] / GRID));
+    nxt[i] = head[k]; head[k] = i;
+  }
+  for (let j = 0; j < MAXD; j++) {
+    const b = D[j];
+    if (!b.on) continue;
+    const k = cellKey(Math.floor(b.x / GRID), Math.floor(b.y / GRID), Math.floor(b.z / GRID));
+    nxt[S + j] = head[k]; head[k] = S + j;
+  }
+  for (let j = 0; j < MAXD; j++) {
+    const a = D[j];
+    if (!a.on) continue;
+    const cx = Math.floor(a.x / GRID), cy = Math.floor(a.y / GRID), cz = Math.floor(a.z / GRID);
+    cells: for (let ox = -1; ox <= 1; ox++) for (let oy = -1; oy <= 1; oy++) for (let oz = -1; oz <= 1; oz++) {
+      for (let o = head[cellKey(cx + ox, cy + oy, cz + oz)]; o !== -1; o = nxt[o]) {
+        if (!a.on) break cells;
+        if (o < S) {
+          const sl = slots[o];
+          if (!sl.alive) continue;
+          const dx = SX[o * 3] - a.x, dy = SX[o * 3 + 1] - a.y, dz = SX[o * 3 + 2] - a.z, m = RAD * (a.s + sl.s * Math.max(sl.grow, 0));
+          if (dx * dx + dy * dy + dz * dz >= m * m) continue;
+          const k = wake(o);
+          if (k >= 0) resolve(j, k);
+        } else if (o - S > j) resolve(j, o - S);
+      }
+    }
+  }
+}
+
+// dt: simulated time (slow motion scales it); rdt: real time, for the rock in your hand
+function step(dt, rdt) {
+  if (held >= 0) {
+    const b = D[held], f = 1 - Math.exp(-rdt * 22), sm = 1 - Math.exp(-rdt * 14), iv = 1 / Math.max(rdt, 1e-4);
+    const nx = b.x + (hold.x - b.x) * f, ny = b.y + (hold.y - b.y) * f, nz = b.z + (hold.z - b.z) * f;
+    b.vx += ((nx - b.x) * iv - b.vx) * sm; b.vy += ((ny - b.y) * iv - b.vy) * sm; b.vz += ((nz - b.z) * iv - b.vz) * sm;
+    b.x = nx; b.y = ny; b.z = nz;
+  }
+  well.k += ((well.on ? 1 : 0) - well.k) * Math.min(1, rdt * 5);
+  // fast bodies get more substeps so they can't tunnel through small rocks
+  let vmax = 0;
+  for (const b of D) if (b.on) vmax = Math.max(vmax, b.vx * b.vx + b.vy * b.vy + b.vz * b.vz);
+  const n = Math.min(6, Math.max(1, Math.ceil(Math.sqrt(vmax) * dt / 0.12))), h = dt / n;
+  for (let sub = 0; sub < n; sub++) {
+    simT += h;
+    for (let i = 0; i < S; i++) if (slots[i].alive) slotPos(i, simT);
+    for (let j = 0; j < MAXD; j++) {
+      const b = D[j];
+      if (!b.on) continue;
+      const r2 = b.x * b.x + b.y * b.y + b.z * b.z;
+      if (!b.held) {
+        const g = -GM / (r2 * Math.sqrt(r2));
+        let ax = b.x * g, ay = b.y * g, az = b.z * g;
+        if (well.k > 0.01) {
+          const dx = well.x - b.x, dy = well.y - b.y, dz = well.z - b.z, d2 = dx * dx + dy * dy + dz * dz + 0.3;
+          const f = 7 * well.k / (d2 * Math.sqrt(d2));
+          ax += dx * f; ay += dy * f; az += dz * f;
+          if (d2 < 6) { const damp = 1 - h * 0.8 * well.k; b.vx *= damp; b.vy *= damp; b.vz *= damp; } // things pile up instead of slingshotting forever
+        }
+        b.vx += ax * h; b.vy += ay * h; b.vz += az * h;
+        b.x += b.vx * h; b.y += b.vy * h; b.z += b.vz * h;
+      }
+      const hit = PR + RAD * b.s * 0.5;
+      if (r2 < hit * hit) {
+        stats.impacts++;
+        fx.impact(b.x, b.y, b.z, b.s, Math.hypot(b.vx, b.vy, b.vz));
+        kill(j);
+      } else if (r2 > 3600) kill(j);
+    }
+    collide();
+  }
+  if (well.k > 0.3) {
+    let woke = 0;
+    for (let i = 0; i < S && woke < 20; i++) {
+      if (!slots[i].alive) continue;
+      const dx = SX[i * 3] - well.x, dy = SX[i * 3 + 1] - well.y, dz = SX[i * 3 + 2] - well.z;
+      if (dx * dx + dy * dy + dz * dz < 3.3 * 3.3 && wake(i) >= 0) woke++;
+    }
+  }
+  for (let j = 0; j < MAXD; j++) {
+    const b = D[j];
+    if (!b.on) continue;
+    b.heat = Math.max(0, b.heat - dt * 0.45);
+    if (b.life !== Infinity && (b.life -= dt) <= 0) kill(j);
+  }
+  // destroyed slots grow back once their spot on the lane is clear (a few checked per frame)
+  for (let i = 0; i < S; i++) { const sl = slots[i]; if (sl.alive && sl.grow < 1) sl.grow = Math.min(1, sl.grow + dt * 0.5); }
+  for (let c = 0; c < 24 && S; c++) {
+    const i = respawnCursor = (respawnCursor + 1) % S, sl = slots[i];
+    if (sl.alive || simT < sl.respawnAt) continue;
+    slotPos(i, simT);
+    let clear = true;
+    for (const b of D) {
+      if (!b.on) continue;
+      const dx = b.x - SX[i * 3], dy = b.y - SX[i * 3 + 1], dz = b.z - SX[i * 3 + 2], m = RAD * (sl.s + b.s) + 0.5;
+      if (dx * dx + dy * dy + dz * dz < m * m) { clear = false; break; }
+    }
+    if (clear) { sl.alive = true; sl.grow = 0; } else sl.respawnAt = simT + 2;
+  }
+}
+
+function detonate(x, y, z) {
+  fx.blast(x, y, z);
+  const R = 2.6;
+  for (let i = 0; i < S; i++) {
+    if (!slots[i].alive) continue;
+    const dx = SX[i * 3] - x, dy = SX[i * 3 + 1] - y, dz = SX[i * 3 + 2] - z;
+    if (dx * dx + dy * dy + dz * dz < R * R) wake(i);
+  }
+  const near = [];
+  for (let j = 0; j < MAXD; j++) if (D[j].on) near.push(j);
+  for (const j of near) {
+    const b = D[j];
+    if (!b.on) continue;
+    let dx = b.x - x, dy = b.y - y, dz = b.z - z;
+    const d = Math.hypot(dx, dy, dz);
+    if (d >= R) continue;
+    dx /= d || 1; dy /= d || 1; dz /= d || 1;
+    if (d < 0.95 && !b.held) { shatter(j, dx * 2.5, dy * 2.5, dz * 2.5); continue; }
+    const f = 4.2 * (1 - d / R) ** 1.5 / (0.6 + b.s * 4);
+    b.vx += dx * f; b.vy += dy * f; b.vz += dz * f;
+    b.heat = Math.max(b.heat, 0.7 * (1 - d / R));
+  }
+}
+
+function restore() {
+  for (let j = 0; j < MAXD; j++) kill(j);
+  for (const sl of slots) { sl.alive = true; sl.grow = -rnd() * 1.5; } // staggered regrowth
+  for (let i = 0; i < S; i++) slotPos(i, simT);
+}
+// </physics>
+
+const lab = new THREE.Scene();
+const labCam = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.05, 600);
+lab.add(stars.clone());
+const SUN = new THREE.Vector3(-0.55, 0.38, 0.75).normalize();
+const RIM_L = new THREE.Vector3(0.5, -0.3, -0.8).normalize();
+const flashes = Array.from({ length: 4 }, () => new THREE.Vector4());
+const FLASH_COL = lin(0xffb27a, 1.4);
+
+// ---------- planet: low-poly and painted per facet, like the rocks ----------
+// Built once on the CPU: the sphere is displaced by noise and craters, every triangle
+// gets one flat colour from a small palette, and lighting uses the same lights as the rocks.
+const planet = (() => {
+  const h3 = (x, y, z) => { const s = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453; return s - Math.floor(s); };
+  const vnoise = (x, y, z) => {
+    const ix = Math.floor(x), iy = Math.floor(y), iz = Math.floor(z);
+    let fx = x - ix, fy = y - iy, fz = z - iz;
+    fx = fx * fx * (3 - 2 * fx); fy = fy * fy * (3 - 2 * fy); fz = fz * fz * (3 - 2 * fz);
+    const c = (a, b, t) => a + (b - a) * t;
+    return c(c(c(h3(ix, iy, iz), h3(ix + 1, iy, iz), fx), c(h3(ix, iy + 1, iz), h3(ix + 1, iy + 1, iz), fx), fy),
+             c(c(h3(ix, iy, iz + 1), h3(ix + 1, iy, iz + 1), fx), c(h3(ix, iy + 1, iz + 1), h3(ix + 1, iy + 1, iz + 1), fx), fy), fz);
+  };
+  const fbm = (x, y, z) => {
+    let s = 0, a = 0.5;
+    for (let i = 0; i < 5; i++) { s += a * vnoise(x, y, z); x = x * 2.03 + 1.7; y = y * 2.03 + 9.2; z = z * 2.03 + 3.1; a *= 0.5; }
+    return s;
+  };
+  const craters = Array.from({ length: 16 }, () => ({ c: new THREE.Vector3(gauss(), gauss(), gauss()).normalize(), r: 0.2 + Math.pow(rnd(), 2) * 0.25 }));
+  const height = v => {
+    let h = fbm(v.x * 1.8 + 5, v.y * 1.8, v.z * 1.8);
+    for (const k of craters) {
+      const t = 1 - v.distanceTo(k.c) / k.r;
+      if (t > 0) h -= 0.2 * Math.min(1, t * 2.5);
+      else if (t > -0.25) h += 0.07 * (1 - Math.abs(t + 0.12) / 0.13); // raised rim
+    }
+    return h;
+  };
+  const geo = new THREE.IcosahedronGeometry(1, 6); // not indexed: every triangle owns its 3 vertices
+  const pos = geo.attributes.position, tint = new Float32Array(pos.count * 3), v = new THREE.Vector3(), cen = new THREE.Vector3();
+  for (let i = 0; i < pos.count; i++) {
+    v.fromBufferAttribute(pos, i).normalize();
+    v.multiplyScalar(PR * (1 + (height(v) - 0.5) * 0.06));
+    pos.setXYZ(i, v.x, v.y, v.z);
+  }
+  const PAINT = { deep: 0x3b2427, low: 0x7a3524, plain: 0xb5532d, high: 0xd98c56, peak: 0xedc79c, ice: 0xbfd9e1 };
+  for (let f = 0; f < pos.count; f += 3) {
+    cen.set(0, 0, 0);
+    for (let k = 0; k < 3; k++) cen.add(v.fromBufferAttribute(pos, f + k));
+    cen.normalize();
+    // colour regions come from a slow noise (big continents), relief only nudges them;
+    // crater floors and rims are painted on their own so they read as shapes
+    const h = height(cen), lat = Math.asin(cen.y);
+    const biome = fbm(cen.x * 0.9 + 11, cen.y * 0.9 + 3, cen.z * 0.9 + 7) + (h - 0.5) * 0.35;
+    let crater = 0;
+    for (const k of craters) { const t = 1 - cen.distanceTo(k.c) / k.r; if (t > 0.2) crater = 1; else if (t > -0.2 && !crater) crater = 2; }
+    const hex = Math.abs(lat) + (biome - 0.5) * 0.6 > 1.15 ? PAINT.ice
+      : crater === 1 ? PAINT.deep : crater === 2 ? PAINT.high
+      : biome < 0.42 ? PAINT.low : biome < 0.56 ? PAINT.plain : biome < 0.62 ? PAINT.high : PAINT.peak;
+    col.setHex(hex).multiplyScalar(0.96 + rnd() * 0.08);
+    for (let k = 0; k < 3; k++) tint.set([col.r, col.g, col.b], (f + k) * 3);
+  }
+  geo.setAttribute('aTint', new THREE.BufferAttribute(tint, 3));
+  geo.computeVertexNormals(); // on a non-indexed mesh these are the flat facet normals
+
+  const u = {
+    uTime: { value: 0 },
+    uSunO: { value: new THREE.Vector3() }, uRimO: { value: new THREE.Vector3() }, uCamO: { value: new THREE.Vector3() },
+    uSunCol: { value: lin(0xffd6b0, 3.0) }, uRimCol: { value: lin(0x7cc8ff, 0.9) }, uAmb: { value: lin(0x3a2a36, 0.9) }, uFlashCol: { value: FLASH_COL },
+    uImp: { value: Array.from({ length: 12 }, () => new THREE.Vector4()) },
+    uFlashO: { value: Array.from({ length: 4 }, () => new THREE.Vector4()) },
+  };
+  const mesh = new THREE.Mesh(geo, new THREE.ShaderMaterial({
+    uniforms: u,
+    vertexShader: `
+attribute vec3 aTint;
+varying vec3 vN, vP, vTint; // object space
+void main() { vN = normal; vP = position; vTint = aTint; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+    fragmentShader: `
+uniform vec3 uSunO, uRimO, uCamO, uSunCol, uRimCol, uAmb, uFlashCol;
+uniform vec4 uImp[12], uFlashO[4];
+uniform float uTime;
+varying vec3 vN, vP, vTint;
+void main() {
+  vec3 n = normalize(vN), d = normalize(vP);
+  vec3 col = vTint, emit = vec3(0.0);
+  // impact craters drawn like cel animation: flat dark floor, light rim, lava pool that shrinks as it cools
+  for (int i = 0; i < 12; i++) {
+    vec4 im = uImp[i];
+    float L = length(im.xyz);
+    if (L < 0.5) continue;
+    float x = acos(clamp(dot(d, im.xyz / L), -1.0, 1.0)) / (0.07 * L);
+    if (x > 1.25) continue;
+    float age = max(uTime - im.w, 0.0), heat = exp(-age * 0.35);
+    col = mix(col, col * 0.3 + vec3(0.03, 0.015, 0.02), 1.0 - smoothstep(0.9, 0.95, x));
+    col = mix(col, col * 1.7 + 0.04, smoothstep(0.92, 0.97, x) * (1.0 - smoothstep(1.13, 1.18, x)));
+    float r0 = 0.85 * heat - 0.05, r1 = 0.45 * heat * heat - 0.05;
+    emit += vec3(1.0, 0.33, 0.06) * 1.6 * (1.0 - smoothstep(r0, r0 + 0.04, x))
+          + vec3(1.0, 0.82, 0.42) * 2.4 * (1.0 - smoothstep(r1, r1 + 0.04, x))
+          + vec3(1.0) * 3.0 * exp(-age * 5.0) * (1.0 - smoothstep(1.0, 1.05, x));
+  }
+  vec3 light = uAmb + uSunCol * max(dot(n, uSunO), 0.0) + uRimCol * max(dot(n, uRimO), 0.0);
+  for (int i = 0; i < 4; i++) {
+    vec3 fd = uFlashO[i].xyz - vP;
+    float dd = dot(fd, fd);
+    light += uFlashCol * uFlashO[i].w * max(dot(n, fd * inversesqrt(dd + 1e-6)), 0.0) / (dd + 0.3);
+  }
+  // a crisp band of atmosphere on the facets near the edge, brighter on the day side
+  float edge = 1.0 - max(dot(n, normalize(uCamO - vP)), 0.0);
+  float day = smoothstep(-0.2, 0.5, dot(d, uSunO));
+  vec3 atm = vec3(0.55, 0.82, 0.95) * smoothstep(0.74, 0.78, edge) * (0.04 + day * 0.2);
+  gl_FragColor = vec4(col * light + emit + atm, 1.0);
+  #include <colorspace_fragment>
+}`,
+  }));
+  // atmosphere halo in two flat bands, the way it would be painted
+  const halo = new THREE.Mesh(new THREE.SphereGeometry(PR * 1.1, 64, 32), new THREE.ShaderMaterial({
+    uniforms: { uSunO: u.uSunO },
+    side: THREE.BackSide, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+    vertexShader: `
+uniform vec3 uSunO;
+varying float vK, vDay;
+void main() {
+  vec4 mv = modelViewMatrix * vec4(position, 1.0);
+  vec3 N = normalize(normalMatrix * normal), V = normalize(-mv.xyz);
+  vK = clamp(-dot(N, V) / 0.42, 0.0, 1.0);
+  vDay = 0.08 + smoothstep(-0.2, 0.6, dot(normalize(position), uSunO));
+  gl_Position = projectionMatrix * mv;
+}`,
+    fragmentShader: `
+varying float vK, vDay;
+void main() {
+  float band = smoothstep(0.62, 0.68, vK) * 0.22; // one thin painted band hugging the limb
+  gl_FragColor = vec4(vec3(0.45, 0.75, 0.95) * band * vDay, 1.0);
+}`,
+  }));
+  mesh.add(halo);
+  lab.add(mesh);
+  return { mesh, u, imp: 0 };
+})();
+
+// ---------- lab rocks: same sprite sheet, positions come from the physics every frame ----------
+const labUni = {
+  tAtlas: { value: uni.tAtlas.value }, uTime: { value: 0 }, uPR: { value: PR }, uSun: { value: SUN }, uFlash: { value: flashes },
+  uKeyDir: { value: new THREE.Vector3() }, uRimDir: { value: new THREE.Vector3() },
+  uKeyCol: { value: lin(0xffd6b0, 3.0) }, uRimCol: { value: lin(0x7cc8ff, 0.9) }, uAmb: { value: lin(0x3a2a36, 1.3) }, uFlashCol: { value: FLASH_COL },
+};
+const POS = new Float32Array(NB * 4), HEAT = new Float32Array(NB);
+const labGeo = new THREE.InstancedBufferGeometry().copy(new THREE.PlaneGeometry(1, 1));
+labGeo.instanceCount = NB;
+const aPos = new THREE.InstancedBufferAttribute(POS, 4).setUsage(THREE.DynamicDrawUsage);
+const aHeat = new THREE.InstancedBufferAttribute(HEAT, 1).setUsage(THREE.DynamicDrawUsage);
+const aSpin = new THREE.InstancedBufferAttribute(SPIN, 4), aColor = new THREE.InstancedBufferAttribute(COLOR, 3);
+labGeo.setAttribute('aPos', aPos); labGeo.setAttribute('aHeat', aHeat);
+labGeo.setAttribute('aSpin', aSpin); labGeo.setAttribute('aColor', aColor);
+const labRocks = new THREE.Mesh(labGeo, new THREE.ShaderMaterial({
+  uniforms: labUni, transparent: true, depthWrite: true,
+  vertexShader: `
+attribute vec4 aPos;  // world position, size (0 = not drawn)
+attribute vec4 aSpin; // frames per second, frame offset, kind, in-plane rotation
+attribute vec3 aColor;
+attribute float aHeat;
+uniform float uTime, uPR;
+uniform vec3 uSun;
+uniform vec4 uFlash[4]; // explosion lights: world position, intensity
+varying vec2 vUv0, vUv1, vRot;
+varying float vMix, vHeat, vShadow;
+varying vec3 vColor, vFlash;
+${CELL_GLSL}
+void main() {
+  if (aPos.w <= 0.0) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
+  vec3 p = aPos.xyz;
+  // planet shadow, analytic: does the ray towards the sun pass through the sphere?
+  float b = dot(p, uSun);
+  vShadow = b < 0.0 ? smoothstep(uPR * 0.92, uPR * 1.06, sqrt(max(dot(p, p) - b * b, 0.0))) : 1.0;
+  float f = mod(aSpin.y + uTime * aSpin.x, FRAMES), f0 = floor(f);
+  vMix = f - f0;
+  float base = aSpin.z * FRAMES;
+  vUv0 = cellUv(base + f0, uv);
+  vUv1 = cellUv(base + mod(f0 + 1.0, FRAMES), uv);
+  vRot = vec2(cos(aSpin.w), sin(aSpin.w));
+  vec4 mv = viewMatrix * vec4(p, 1.0);
+  // all explosion lights folded into one direction + strength per rock
+  vFlash = vec3(0.0);
+  for (int i = 0; i < 4; i++) {
+    vec3 d = (viewMatrix * vec4(uFlash[i].xyz, 1.0)).xyz - mv.xyz;
+    float dd = dot(d, d);
+    vFlash += d * inversesqrt(dd + 1e-6) * uFlash[i].w / (dd + 0.3);
+  }
+  mv.xy += mat2(vRot.x, vRot.y, -vRot.y, vRot.x) * position.xy * aPos.w * ${(FIT * 2).toFixed(2)};
+  gl_Position = projectionMatrix * mv;
+  vColor = aColor;
+  vHeat = aHeat;
+}`,
+  fragmentShader: `
+uniform sampler2D tAtlas;
+uniform vec3 uKeyDir, uRimDir, uKeyCol, uRimCol, uAmb, uFlashCol;
+varying vec2 vUv0, vUv1, vRot;
+varying float vMix, vHeat, vShadow;
+varying vec3 vColor, vFlash;
+void main() {
+  vec4 t = mix(texture2D(tAtlas, vUv0), texture2D(tAtlas, vUv1), vMix);
+  // the edge stays about one screen pixel wide at any zoom (fwidth), so close rocks stay crisp;
+  // the ink line is the old coverage band far away, and at most ~2 px when a rock is close
+  float aw = max(fwidth(t.a), 0.02);
+  float alpha = smoothstep(0.38 - aw, 0.38 + aw, t.a);
+  if (alpha < 0.01) discard;
+  float ink = mix(0.25, 1.0, max(smoothstep(0.42, 0.8, t.a), smoothstep(1.2, 2.4, (t.a - 0.38) / aw)));
+  vec2 nxy = mat2(vRot.x, vRot.y, -vRot.y, vRot.x) * (t.rg * 2.0 - 1.0);
+  vec3 n = vec3(nxy, sqrt(max(0.0, 1.0 - dot(nxy, nxy))));
+  float shade = t.b / max(t.a, 0.01), fl = length(vFlash);
+  vec3 light = uAmb
+    + uKeyCol * max(dot(n, uKeyDir), 0.0) * vShadow
+    + uRimCol * max(dot(n, uRimDir), 0.0)
+    + uFlashCol * max(dot(n, vFlash / (fl + 1e-5)), 0.0) * fl;
+  vec3 hot = vec3(1.0, 0.3, 0.05) * vHeat * vHeat * (1.5 + 2.0 * vHeat) * (0.5 + 0.5 * shade);
+  gl_FragColor = vec4((vColor * shade * light + hot) * ink, alpha);
+  #include <colorspace_fragment>
+}`,
+}));
+labRocks.frustumCulled = false;
+lab.add(labRocks);
+
+// fine dust in the ring plane, turning at the speed of the middle lanes
+const labDust = (() => {
+  const n = 5000, p = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) {
+    const a = rnd() * TAU;
+    const r = rnd() < 0.4 ? 4.3 + rnd() * 1.8 : 6.75 + rnd() * 2.05; // keeps the gap empty
+    p.set([Math.cos(a) * r, gauss() * 0.03, -Math.sin(a) * r], i * 3);
+  }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(p, 3));
+  const pts = new THREE.Points(g, new THREE.PointsMaterial({ color: 0xb88a70, size: 0.035, transparent: true, opacity: 0.4, depthWrite: false, blending: THREE.AdditiveBlending }));
+  lab.add(pts);
+  return pts;
+})();
+
+// ---------- effects ----------
+const SPK = 3000;
+const spk = {
+  pos: new Float32Array(SPK * 3), vel: new Float32Array(SPK * 3), life: new Float32Array(SPK), rate: new Float32Array(SPK),
+  size: new Float32Array(SPK), next: 0, alive: 0,
+};
+for (let i = 0; i < SPK; i++) spk.size[i] = 0.03 + rnd() * 0.07;
+const spkGeo = new THREE.BufferGeometry();
+const spkPosAttr = new THREE.BufferAttribute(spk.pos, 3).setUsage(THREE.DynamicDrawUsage);
+const spkLifeAttr = new THREE.BufferAttribute(spk.life, 1).setUsage(THREE.DynamicDrawUsage);
+spkGeo.setAttribute('position', spkPosAttr); spkGeo.setAttribute('aLife', spkLifeAttr);
+spkGeo.setAttribute('aSize', new THREE.BufferAttribute(spk.size, 1));
+const spkUni = { uScale: { value: 1 } };
+const sparks = new THREE.Points(spkGeo, new THREE.ShaderMaterial({
+  uniforms: spkUni, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+  vertexShader: `
+attribute float aLife, aSize;
+uniform float uScale;
+varying float vLife;
+void main() {
+  vLife = aLife;
+  vec4 mv = modelViewMatrix * vec4(position, 1.0);
+  gl_PointSize = aLife > 0.0 ? max(aSize * (0.4 + aLife) * uScale / -mv.z, 1.0) : 0.0;
+  gl_Position = projectionMatrix * mv;
+}`,
+  fragmentShader: `
+varying float vLife;
+void main() {
+  float a = smoothstep(0.5, 0.0, length(gl_PointCoord - 0.5));
+  vec3 c = mix(vec3(1.0, 0.22, 0.04), vec3(1.0, 0.75, 0.4), smoothstep(0.2, 0.7, vLife));
+  c = mix(c, vec3(1.0, 0.97, 0.9), smoothstep(0.75, 1.0, vLife));
+  gl_FragColor = vec4(c, a * min(1.0, vLife * 2.0));
+}`,
+}));
+sparks.frustumCulled = false;
+lab.add(sparks);
+
+function emitSparks(x, y, z, count, speed, nx = 0, ny = 0, nz = 0) {
+  for (let c = 0; c < count; c++) {
+    const i = spk.next = (spk.next + 1) % SPK;
+    let dx = gauss() + nx * 1.6, dy = gauss() + ny * 1.6, dz = gauss() + nz * 1.6;
+    const l = Math.hypot(dx, dy, dz) || 1, v = speed * (0.25 + rnd() * 0.75) / l;
+    spk.pos.set([x, y, z], i * 3);
+    spk.vel.set([dx * v, dy * v, dz * v], i * 3);
+    spk.life[i] = 1;
+    spk.rate[i] = 1 / (0.45 + rnd() * 0.9);
+  }
+  spk.alive = SPK;
+}
+function updateSparks(dt) {
+  if (!spk.alive) return;
+  let alive = 0;
+  const drag = Math.exp(-dt * 1.4), wk = well.k;
+  for (let i = 0; i < SPK; i++) {
+    if (spk.life[i] <= 0) continue;
+    alive++;
+    const o = i * 3, x = spk.pos[o], y = spk.pos[o + 1], z = spk.pos[o + 2], r2 = x * x + y * y + z * z;
+    const g = -GM / (r2 * Math.sqrt(r2)) * dt;
+    spk.vel[o] = spk.vel[o] * drag + x * g; spk.vel[o + 1] = spk.vel[o + 1] * drag + y * g; spk.vel[o + 2] = spk.vel[o + 2] * drag + z * g;
+    if (wk > 0.01) {
+      const dx = well.x - x, dy = well.y - y, dz = well.z - z, d2 = dx * dx + dy * dy + dz * dz + 0.3, f = 7 * wk / (d2 * Math.sqrt(d2)) * dt;
+      spk.vel[o] += dx * f; spk.vel[o + 1] += dy * f; spk.vel[o + 2] += dz * f;
+    }
+    spk.pos[o] += spk.vel[o] * dt; spk.pos[o + 1] += spk.vel[o + 1] * dt; spk.pos[o + 2] += spk.vel[o + 2] * dt;
+    spk.life[i] -= dt * spk.rate[i];
+    if (r2 < PR * PR) spk.life[i] = 0;
+  }
+  spk.alive = alive;
+  spkPosAttr.needsUpdate = spkLifeAttr.needsUpdate = true;
+}
+
+// shockwaves: expanding rings, facing the camera in space or lying on the planet surface
+const shocks = Array.from({ length: 8 }, () => {
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.ShaderMaterial({
+    uniforms: { uT: { value: 1 } }, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+    vertexShader: `varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+    fragmentShader: `
+uniform float uT;
+varying vec2 vUv;
+void main() {
+  float d = length(vUv * 2.0 - 1.0), w = 0.06 + 0.22 * uT;
+  float a = smoothstep(1.0, 1.0 - w, d) * smoothstep(1.0 - w * 2.4, 1.0 - w, d) * (1.0 - uT) * (1.0 - uT);
+  gl_FragColor = vec4(mix(vec3(1.0, 0.45, 0.18), vec3(1.0, 0.95, 0.85), (1.0 - uT) * (1.0 - uT)), a * 1.6);
+}`,
+  }));
+  m.visible = false;
+  lab.add(m);
+  return { m, t: 1, dur: 0.7, size: 1, face: true };
+});
+const ZAXIS = new THREE.Vector3(0, 0, 1);
+function shock(x, y, z, size, nx, ny, nz) {
+  const s = shocks.reduce((a, b) => (b.t > a.t ? b : a));
+  s.t = 0; s.size = size; s.dur = 0.5 + size * 0.06; s.face = nx === undefined;
+  s.m.position.set(x, y, z);
+  if (!s.face) s.m.quaternion.setFromUnitVectors(ZAXIS, v3.set(nx, ny, nz));
+  s.m.visible = true;
+}
+function updateShocks(dt) {
+  for (const s of shocks) {
+    if (s.t >= 1) continue;
+    s.t = Math.min(1, s.t + dt / s.dur);
+    const e = 1 - (1 - s.t) ** 3;
+    s.m.scale.setScalar(s.size * (0.1 + e));
+    s.m.material.uniforms.uT.value = s.t;
+    if (s.face) s.m.quaternion.copy(labCam.quaternion);
+    s.m.visible = s.t < 1;
+  }
+}
+
+function flash(x, y, z, power) {
+  const f = flashes.reduce((a, b) => (b.w < a.w ? b : a));
+  f.set(x, y, z, power);
+}
+let shake = 0;
+const fx = {
+  burst(x, y, z, s) {
+    emitSparks(x, y, z, Math.round(10 + s * 240), 0.8 + s * 5);
+    flash(x, y, z, 1.2 + s * 14);
+    if (s > 0.12) shock(x, y, z, s * 9);
+    shake = Math.min(1.2, shake + s * 0.6);
+  },
+  impact(x, y, z, s, speed) {
+    const l = Math.hypot(x, y, z), nx = x / l, ny = y / l, nz = z / l;
+    // store the crater in the planet's own frame so it turns with the surface
+    v3.set(nx, ny, nz).applyAxisAngle(UP, -planet.mesh.rotation.y).multiplyScalar(1 + Math.min(1, s * 3.5));
+    planet.u.uImp.value[planet.imp].set(v3.x, v3.y, v3.z, labT);
+    planet.imp = (planet.imp + 1) % 12;
+    emitSparks(x, y, z, Math.round(40 + s * 400), 1.5 + s * 6 + speed * 0.3, nx, ny, nz);
+    flash(nx * (PR + 0.4), ny * (PR + 0.4), nz * (PR + 0.4), 3 + s * 30);
+    shock(nx * (PR + 0.08), ny * (PR + 0.08), nz * (PR + 0.08), 0.6 + s * 7, nx, ny, nz);
+    shake = Math.min(1.5, shake + 0.2 + s * 1.2);
+  },
+  blast(x, y, z) {
+    emitSparks(x, y, z, 450, 5.5);
+    flash(x, y, z, 22);
+    shock(x, y, z, 5.5);
+    shock(x, y, z, 2.6);
+    shake = Math.min(1.5, shake + 0.9);
+  },
+};
+
+// ---------- interaction helpers: hover ring, gravity well, predicted trajectory ----------
+const reticle = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.ShaderMaterial({
+  uniforms: { uTime: { value: 0 }, uCol: { value: new THREE.Color() } }, transparent: true, depthWrite: false, depthTest: false,
+  vertexShader: `varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+  fragmentShader: `
+uniform float uTime;
+uniform vec3 uCol;
+varying vec2 vUv;
+void main() {
+  vec2 p = vUv * 2.0 - 1.0;
+  float d = length(p), a = atan(p.y, p.x);
+  float ring = smoothstep(0.8, 0.86, d) * smoothstep(0.98, 0.92, d);
+  float gaps = step(0.3, fract(a / 6.2831853 * 4.0 + uTime * 0.25));
+  gl_FragColor = vec4(uCol, ring * gaps * 0.95);
+}`,
+}));
+reticle.visible = false; reticle.renderOrder = 5;
+lab.add(reticle);
+
+const wellMesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.ShaderMaterial({
+  uniforms: { uTime: { value: 0 }, uK: { value: 0 } }, transparent: true, depthWrite: false,
+  vertexShader: `varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+  fragmentShader: `
+uniform float uTime, uK;
+varying vec2 vUv;
+void main() {
+  vec2 p = vUv * 2.0 - 1.0;
+  float r = length(p), a = atan(p.y, p.x);
+  float swirl = 0.5 + 0.5 * sin(a * 3.0 - log(r + 0.02) * 7.0 + uTime * 5.0);
+  float disk = smoothstep(1.0, 0.35, r) * smoothstep(0.12, 0.3, r);
+  vec3 c = mix(vec3(1.0, 0.35, 0.1), vec3(1.0, 0.8, 0.55), swirl) * (0.35 + 0.65 * swirl);
+  float core = smoothstep(0.24, 0.1, r);
+  gl_FragColor = vec4(c * (1.0 - core), max(disk * 0.75, core) * uK);
+}`,
+}));
+wellMesh.visible = false;
+lab.add(wellMesh);
+
+const TRAJ = 120;
+const trajPos = new Float32Array(TRAJ * 3), trajT = new Float32Array(TRAJ);
+for (let i = 0; i < TRAJ; i++) trajT[i] = i / (TRAJ - 1);
+const trajGeo = new THREE.BufferGeometry();
+const trajAttr = new THREE.BufferAttribute(trajPos, 3).setUsage(THREE.DynamicDrawUsage);
+trajGeo.setAttribute('position', trajAttr); trajGeo.setAttribute('aT', new THREE.BufferAttribute(trajT, 1));
+const traj = new THREE.Line(trajGeo, new THREE.ShaderMaterial({
+  transparent: true, depthWrite: false,
+  vertexShader: `attribute float aT; varying float vT; void main() { vT = aT; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+  fragmentShader: `varying float vT; void main() { gl_FragColor = vec4(0.62, 0.85, 0.9, (1.0 - vT) * 0.85 * step(0.45, fract(vT * 30.0))); }`,
+}));
+traj.frustumCulled = false; traj.visible = false;
+lab.add(traj);
+function predict(x, y, z, vx, vy, vz) {
+  const h = 1 / 40;
+  let n = 0;
+  for (; n < TRAJ; n++) {
+    trajPos[n * 3] = x; trajPos[n * 3 + 1] = y; trajPos[n * 3 + 2] = z;
+    const r2 = x * x + y * y + z * z;
+    if (r2 < PR * PR) { n++; break; }
+    const g = -GM / (r2 * Math.sqrt(r2));
+    vx += x * g * h; vy += y * g * h; vz += z * g * h;
+    x += vx * h; y += vy * h; z += vz * h;
+  }
+  trajGeo.setDrawRange(0, n);
+  trajAttr.needsUpdate = true;
+}
+
+// ---------- lab input ----------
+const labUI = document.getElementById('lab'), tip = document.getElementById('lab-tip');
+const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(), hitP = new THREE.Vector3();
+const ringPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), dragPlane = new THREE.Plane();
+const ptr = { x: 0, y: 0, px: 0, py: 0, mouse: false, inside: false };
+let tool = 'grab', slowMo = false, orbiting = false, labActive = false, hover = -1;
+let az = 0.6, el = 0.38, ts = 1, labT = 0, idle = 0;
+
+const NOTES = {
+  grab: ['Arremessar',
+    'Segure uma pedra, arraste até o alvo (o planeta ou outra pedra) e solte. Arraste o vazio para girar a câmera.',
+    'A tela é 2D, então a mira resolve a profundidade: o raio do cursor acerta o planeta (interseção raio-esfera) ou a pedra mais próxima na tela, e o arremesso parte em 3D para esse ponto, adiantando o alvo que está em órbita. A linha tracejada integra a gravidade três segundos à frente.'],
+  well: ['Gravidade',
+    'Segure em qualquer ponto do anel para abrir um poço gravitacional.',
+    'O poço soma uma aceleração 1/d² à do planeta. As pedras saem do trilho, se amontoam e se chocam: cada uma quebra se a energia que absorve, dividida pela própria massa, passar do limite.'],
+  boom: ['Detonar',
+    'Clique numa pedra ou no anel para explodir.',
+    'Impulso radial que cai com a distância. Perto do centro, as pedras viram fragmentos em brasa. O clarão é uma luz dinâmica que ilumina sprites pré-renderizados, porque cada sprite guarda normais e não uma foto.'],
+};
+const noteTitle = document.getElementById('note-title'), noteHow = document.getElementById('note-how'), noteText = document.getElementById('note-text');
+function setTool(t) {
+  tool = t;
+  for (const b of document.querySelectorAll('[data-tool]')) b.setAttribute('aria-pressed', String(b.dataset.tool === t));
+  [noteTitle.textContent, noteHow.textContent, noteText.textContent] = NOTES[t];
+}
+function setSlow(on) {
+  slowMo = on;
+  document.getElementById('slow').setAttribute('aria-pressed', String(on));
+}
+setTool('grab');
+for (const b of document.querySelectorAll('[data-tool]')) b.addEventListener('click', () => setTool(b.dataset.tool));
+document.getElementById('slow').addEventListener('click', () => setSlow(!slowMo));
+document.getElementById('reset').addEventListener('click', () => { restore(); for (const v of planet.u.uImp.value) v.set(0, 0, 0, 0); });
+
+function pointerRay() {
+  ndc.set(ptr.x / innerWidth * 2 - 1, -(ptr.y / innerHeight) * 2 + 1);
+  ray.setFromCamera(ndc, labCam);
+  return ray.ray;
+}
+// screen-space picking: project every rock, keep the closest one under the cursor
+function pick(skip = -1) {
+  const proj = innerHeight / 2 / Math.tan(labCam.fov * Math.PI / 360);
+  let best = -1, bestScore = Infinity;
+  const consider = (idx, x, y, z, s) => {
+    v3.set(x, y, z).applyMatrix4(labCam.matrixWorldInverse);
+    if (v3.z > -0.1) return;
+    const depth = -v3.z, sx = v3.x / depth * proj + innerWidth / 2, sy = -v3.y / depth * proj + innerHeight / 2;
+    const rad = RAD * s * proj / depth + 16, dist = Math.hypot(sx - ptr.x, sy - ptr.y);
+    if (dist > rad || idx === skip) return;
+    const score = dist / rad + depth * 0.004;
+    if (score < bestScore) { bestScore = score; best = idx; }
+  };
+  for (let i = 0; i < S; i++) if (slots[i].alive && slots[i].grow > 0.5) consider(i, SX[i * 3], SX[i * 3 + 1], SX[i * 3 + 2], slots[i].s);
+  for (let j = 0; j < MAXD; j++) if (D[j].on) consider(S + j, D[j].x, D[j].y, D[j].z, D[j].s);
+  return best;
+}
+const posOf = idx => (idx < S ? [SX[idx * 3], SX[idx * 3 + 1], SX[idx * 3 + 2]] : [D[idx - S].x, D[idx - S].y, D[idx - S].z]);
+
+// Aiming: drag from the rock to the target. The screen is 2D, so the depth comes from what
+// lies under the cursor: the planet (ray-sphere) or a rock (screen-space pick); in empty space
+// the rock flies to the point under the cursor at its own depth.
+const planetSphere = new THREE.Sphere(new THREE.Vector3(), PR);
+const aim = { on: false, x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, target: -1, planet: false };
+function updateAim() {
+  const b = D[held];
+  v3.set(b.x, b.y, b.z).project(labCam);
+  aim.on = Math.hypot((v3.x + 1) / 2 * innerWidth - ptr.x, (1 - v3.y) / 2 * innerHeight - ptr.y) > 28;
+  if (!aim.on) return;
+  const r = pointerRay();
+  let best = Infinity;
+  aim.target = -1; aim.planet = false;
+  if (r.intersectSphere(planetSphere, hitP)) { best = hitP.distanceTo(labCam.position); aim.planet = true; aim.x = hitP.x; aim.y = hitP.y; aim.z = hitP.z; }
+  const idx = pick(S + held);
+  if (idx >= 0) {
+    const [x, y, z] = posOf(idx);
+    if (hitP.set(x, y, z).distanceTo(labCam.position) < best) {
+      best = 0; aim.planet = false; aim.target = idx;
+      // lead a moving target: aim where it will be when the throw arrives
+      const t = Math.hypot(x - b.x, y - b.y, z - b.z) / 9;
+      const v = idx < S ? slotVel(idx, simT) : [D[idx - S].vx, D[idx - S].vy, D[idx - S].vz];
+      aim.x = x + v[0] * t; aim.y = y + v[1] * t; aim.z = z + v[2] * t;
+    }
+  }
+  if (best === Infinity) {
+    labCam.getWorldDirection(v3);
+    dragPlane.setFromNormalAndCoplanarPoint(v3, hitP.set(b.x, b.y, b.z));
+    if (!r.intersectPlane(dragPlane, hitP)) { aim.on = false; return; }
+    aim.x = hitP.x; aim.y = hitP.y; aim.z = hitP.z;
+  }
+  const dx = aim.x - b.x, dy = aim.y - b.y, dz = aim.z - b.z, d = Math.hypot(dx, dy, dz) || 1;
+  const speed = aim.target >= 0 ? 9 : clamp(d / 0.7, 5, 16);
+  aim.vx = dx / d * speed; aim.vy = dy / d * speed; aim.vz = dz / d * speed;
+}
+function release() {
+  if (held < 0) return;
+  const b = D[held];
+  updateAim();
+  if (aim.on) { b.vx = aim.vx; b.vy = aim.vy; b.vz = aim.vz; }
+  else {
+    // let go without aiming: back to a circular orbit where it is
+    const r = Math.hypot(b.x, b.y, b.z), v = Math.sqrt(GM / r), l = Math.hypot(b.x, b.z) || 1;
+    b.vx = b.z / l * v; b.vy = 0; b.vz = -b.x / l * v; // same sense as the lanes
+  }
+  b.held = false; held = -1; aim.on = false;
+}
+function aimWell() {
+  if (pointerRay().intersectPlane(ringPlane, hitP) && hitP.length() < 14) { well.x = hitP.x; well.y = hitP.y; well.z = hitP.z; return true; }
+  return false;
+}
+addEventListener('pointerdown', e => {
+  if (!labActive || e.button > 0 || e.target.closest('.lab-tools, .lab-note, #hud')) return;
+  e.preventDefault(); // no text selection or native drag while playing
+  ptr.x = ptr.px = e.clientX; ptr.y = ptr.py = e.clientY;
+  idle = 0;
+  if (tool === 'grab') {
+    const idx = pick(), j = idx < 0 ? -1 : idx < S ? wake(idx) : idx - S;
+    if (j < 0) { orbiting = true; return; }
+    held = j; D[j].held = true;
+    // picked up: lifted a little towards the camera and kept still while you aim
+    labCam.getWorldDirection(v3);
+    hold.x = D[j].x - v3.x * 0.6; hold.y = D[j].y - v3.y * 0.6; hold.z = D[j].z - v3.z * 0.6;
+    tip.style.opacity = 0;
+  } else if (tool === 'well') {
+    if (aimWell()) well.on = true;
+  } else {
+    const idx = pick();
+    if (idx >= 0) detonate(...posOf(idx));
+    else if (pointerRay().intersectPlane(ringPlane, hitP) && hitP.length() < 12) detonate(hitP.x, hitP.y, hitP.z);
+  }
+});
+addEventListener('pointermove', e => {
+  ptr.x = e.clientX; ptr.y = e.clientY; ptr.mouse = e.pointerType === 'mouse'; ptr.inside = true;
+  if (!labActive) return;
+  if (orbiting) {
+    az -= (ptr.x - ptr.px) * 0.006;
+    el = clamp(el + (ptr.y - ptr.py) * 0.004, 0.06, 1.25);
+  }
+  if (well.on) aimWell();
+  ptr.px = ptr.x; ptr.py = ptr.y;
+});
+const endPointer = () => { release(); orbiting = false; well.on = false; };
+document.documentElement.addEventListener('mouseleave', () => { ptr.inside = false; });
+addEventListener('pointerup', endPointer);
+addEventListener('pointercancel', endPointer);
+addEventListener('keydown', e => {
+  if (!labActive || e.repeat) return;
+  if (e.key === '1') setTool('grab');
+  else if (e.key === '2') setTool('well');
+  else if (e.key === '3') setTool('boom');
+  else if (e.key === '4') setSlow(!slowMo);
+  else if (e.key === 'r' || e.key === 'R') document.getElementById('reset').click();
+});
+
+const cRing = document.getElementById('c-ring'), cFree = document.getElementById('c-free'), cHits = document.getElementById('c-hits');
+let countT = 0;
+const UP = new THREE.Vector3(0, 1, 0);
+
+function labFrame(dt, pD) {
+  const e = pD * pD * (3 - 2 * pD);
+  ts += ((slowMo ? 0.15 : 1) - ts) * Math.min(1, dt * 6);
+  const sdt = dt * ts;
+  labT += sdt;
+  backPlane.constant = 1e4; // the page is gone, nothing to clip
+
+  // camera: falls in from far above, then orbits; drifts on its own when nobody touches it
+  idle += dt;
+  if (!orbiting && held < 0 && idle > 2) az += dt * 0.03;
+  const portrait = innerWidth < innerHeight;
+  const dist = lerp(40, portrait ? 21 : 14.5, e), elev = lerp(1.35, el, e);
+  labCam.position.set(Math.cos(elev) * Math.sin(az) * dist, Math.sin(elev) * dist, Math.cos(elev) * Math.cos(az) * dist);
+  labCam.lookAt(0, 0, 0);
+  if (shake > 0.001) {
+    labCam.position.x += (rnd() - 0.5) * shake * 0.25;
+    labCam.position.y += (rnd() - 0.5) * shake * 0.25;
+    shake *= Math.exp(-dt * 6);
+  }
+  labCam.updateMatrixWorld();
+
+  step(sdt, dt);
+  planet.mesh.rotation.y += sdt * 0.04;
+  labDust.rotation.y += sdt * 0.139;
+  for (const f of flashes) f.w *= Math.exp(-sdt * 7);
+  updateSparks(sdt);
+  updateShocks(sdt);
+
+  // render buffers from the physics state
+  for (let i = 0; i < S; i++) {
+    const sl = slots[i], o = i * 4;
+    POS[o] = SX[i * 3]; POS[o + 1] = SX[i * 3 + 1]; POS[o + 2] = SX[i * 3 + 2];
+    POS[o + 3] = sl.alive ? sl.s * Math.max(0, sl.grow) : 0;
+  }
+  for (let j = 0; j < MAXD; j++) {
+    const b = D[j], o = (S + j) * 4;
+    if (!b.on) { POS[o + 3] = 0; continue; }
+    POS[o] = b.x; POS[o + 1] = b.y; POS[o + 2] = b.z;
+    POS[o + 3] = b.s * Math.min(1, b.life);
+    HEAT[S + j] = b.heat;
+  }
+  aPos.needsUpdate = aHeat.needsUpdate = true;
+  if (visDirty) { aSpin.needsUpdate = aColor.needsUpdate = true; visDirty = false; }
+
+  // hover ring and trajectory
+  // rocks keep moving under a still cursor, so the hover test runs every frame
+  hover = labActive && tool === 'grab' && held < 0 && !orbiting && ptr.mouse && ptr.inside ? pick() : -1;
+  if (held >= 0) updateAim(); else aim.on = false;
+  const sizeOf = idx => (idx < S ? slots[idx].s : D[idx - S].s);
+  const alive = idx => (idx < S ? slots[idx].alive : D[idx - S].on);
+  let ret = null;
+  if (aim.on && aim.planet) ret = [aim.x, aim.y, aim.z, 0.32, true];
+  else if (aim.on && aim.target >= 0 && alive(aim.target)) ret = [...posOf(aim.target), sizeOf(aim.target) * 1.6 + 0.12, true];
+  else if (held < 0 && hover >= 0 && alive(hover)) ret = [...posOf(hover), sizeOf(hover) * 1.6 + 0.08, false];
+  else hover = -1;
+  reticle.visible = !!ret;
+  if (ret) {
+    reticle.position.set(ret[0], ret[1], ret[2]);
+    reticle.quaternion.copy(labCam.quaternion);
+    reticle.scale.setScalar(ret[3]);
+    reticle.material.uniforms.uCol.value.setRGB(...(ret[4] ? [1, 0.45, 0.22] : [0.62, 0.85, 0.9]));
+    reticle.material.uniforms.uTime.value = labT;
+  }
+  traj.visible = held >= 0 && aim.on;
+  if (traj.visible) predict(D[held].x, D[held].y, D[held].z, aim.vx, aim.vy, aim.vz);
+  wellMesh.visible = well.k > 0.01;
+  if (wellMesh.visible) {
+    wellMesh.position.set(well.x, well.y, well.z);
+    wellMesh.quaternion.copy(labCam.quaternion);
+    wellMesh.scale.setScalar(1.7 * well.k);
+    wellMesh.material.uniforms.uK.value = well.k;
+    wellMesh.material.uniforms.uTime.value = labT;
+  }
+  document.body.style.cursor = !labActive ? '' : tool !== 'grab' ? 'crosshair' : held >= 0 || orbiting ? 'grabbing' : hover >= 0 ? 'grab' : '';
+
+  // lights
+  labUni.uTime.value = labT;
+  labUni.uKeyDir.value.copy(SUN).transformDirection(labCam.matrixWorldInverse);
+  labUni.uRimDir.value.copy(RIM_L).transformDirection(labCam.matrixWorldInverse);
+  const rotY = -planet.mesh.rotation.y;
+  planet.u.uTime.value = labT;
+  planet.u.uSunO.value.copy(SUN).applyAxisAngle(UP, rotY);
+  planet.u.uRimO.value.copy(RIM_L).applyAxisAngle(UP, rotY);
+  planet.u.uCamO.value.copy(labCam.position).applyAxisAngle(UP, rotY);
+  flashes.forEach((f, i) => {
+    v3.set(f.x, f.y, f.z).applyAxisAngle(UP, rotY);
+    planet.u.uFlashO.value[i].set(v3.x, v3.y, v3.z, f.w);
+  });
+
+  backR.render(lab, labCam);
+
+  if ((countT += dt) > 0.3) {
+    countT = 0;
+    let calm = 0, loose = 0;
+    for (const sl of slots) if (sl.alive) calm++;
+    for (const b of D) if (b.on) loose++;
+    cRing.textContent = calm; cFree.textContent = loose; cHits.textContent = stats.impacts;
+  }
+}
+
+// ---------- scroll / pointer ----------
+// g runs over the whole page: act I takes the first 80%, the descent into the lab the rest
+const ACT1 = 0.8;
+let gTarget = 0, g = 0;
+const maxScroll = () => document.documentElement.scrollHeight - innerHeight;
+const readScroll = () => { gTarget = clamp(scrollY / maxScroll()); };
+addEventListener('scroll', readScroll, { passive: true });
+const mouse = { x: 0, y: 0, sx: 0, sy: 0 };
+addEventListener('pointermove', e => { mouse.x = e.clientX / innerWidth - 0.5; mouse.y = e.clientY / innerHeight - 0.5; });
+const toTop = e => { e?.preventDefault(); scrollTo({ top: 0, behavior: 'smooth' }); };
+const toLab = e => { e.preventDefault(); scrollTo({ top: maxScroll(), behavior: 'smooth' }); };
+// the CTA rides the whole descent slowly, so every stage of the fall gets seen; any input from the user takes over
+let ride = 0;
+const stopRide = () => { cancelAnimationFrame(ride); ride = 0; };
+document.getElementById('cta').addEventListener('click', e => {
+  e.preventDefault(); stopRide();
+  const from = scrollY, dur = 14000 * (1 - from / maxScroll()) + 1000;
+  let t0 = 0;
+  const step = now => {
+    t0 ||= now;
+    const t = clamp((now - t0) / dur), k = t < 0.5 ? 2 * t * t : 1 - 2 * (1 - t) * (1 - t);
+    scrollTo(0, from + (maxScroll() - from) * k);
+    ride = t < 1 ? requestAnimationFrame(step) : 0;
+  };
+  ride = requestAnimationFrame(step);
+});
+for (const ev of ['wheel', 'touchstart', 'keydown']) addEventListener(ev, stopRide, { passive: true });
+document.getElementById('back-top').addEventListener('click', toTop);
+document.getElementById('lab-up').addEventListener('click', toTop);
+document.getElementById('nav-lab').addEventListener('click', toLab);
+
+const updateSparkScale = () => { spkUni.uScale.value = innerHeight * pr / (2 * Math.tan(labCam.fov * Math.PI / 360)); };
+updateSparkScale();
+addEventListener('resize', () => {
+  for (const r of [backR, frontR]) { r.setPixelRatio(pr); r.setSize(innerWidth, innerHeight, false); }
+  camera.aspect = labCam.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix(); labCam.updateProjectionMatrix();
+  updateSparkScale();
+  measure(); readScroll();
+});
+
+// ---------- fps ----------
+const fpsEl = document.getElementById('fps');
+let frames = 0, fpsT = performance.now();
+function tickFps(now) {
+  frames++;
+  if (now - fpsT < 500) return;
+  fpsEl.textContent = Math.round(frames * 1000 / (now - fpsT)) + ' fps';
+  frames = 0; fpsT = now;
+}
+
+// ---------- act I ----------
+const v3 = new THREE.Vector3(), camStart = new THREE.Vector3(), camEnd = new THREE.Vector3(), lookEnd = new THREE.Vector3(), look = new THREE.Vector3();
+const ringNormal = new THREE.Vector3(), q = new THREE.Quaternion();
+const hint = document.getElementById('hint'), railFill = document.querySelector('#rail i'), end = document.getElementById('end');
+let ringPhase = 0, last = performance.now(), t = 0;
+
+function actOne(dt, prog, labOn) {
+  const pA = smooth(0, 0.22, prog);     // belt closes in around the page
+  const pB = smooth(0.12, 0.72, prog);  // page gets pulled into orbit
+  const pC = smooth(0.7, 0.98, prog);   // camera dives into the belt
+  const portrait = innerWidth < innerHeight;
+
+  const R = lerp(lerp(portrait ? 7.2 : 9.5, portrait ? 6.2 : 8.4, pA), portrait ? 5.2 : 6.6, pB);
+  const thick = lerp(0.28, 0.75, pB);
+  const speed = lerp(lerp(1, 1.6, pA), 4.2, pB) * lerp(1, 0.55, pC);
+  const tilt = lerp(lerp(1.12, 1.24, pA), 1.32, pB) + mouse.sy * 0.08;
+
+  ring.rotation.set(-tilt, mouse.sx * 0.12, Math.sin(t * 0.1) * 0.03 + pB * 0.15);
+  ring.position.y = lerp(portrait ? -0.4 : -0.6, 0, pA);
+  ring.updateMatrixWorld(true);
+  ringPhase += dt * 0.09 * speed;
+
+  uni.uPhase.value += dt * speed;
+  uni.uTime.value = t;
+  uni.uR.value = R;
+  uni.uSpread.value = lerp(1.3, 2.3, pB);
+  uni.uThick.value = thick;
+  uni.uSize.value = lerp(1, 1.35, pB);
+
+  dust.scale.set(R, R, thick * 4);
+  dust.rotation.z += dt * 0.05 * speed;
+  dust.material.opacity = 0.55 * (1 - smooth(0.2, 0.7, pC));
+  uni.uGlow.value = lerp(1, 1.8, pB) * (1 - pC * 0.6);
+
+  // camera: in front of the page, then down into the belt, looking against the flow
+  camStart.set(mouse.sx * 1.2, -mouse.sy * 0.8, portrait ? 21 : 16);
+  camEnd.copy(ring.localToWorld(v3.set(0, -R, thick * 0.6 + 0.15)));
+  lookEnd.copy(ring.localToWorld(v3.set(-8, -R + 1.2, 0)));
+  const e = pC * pC * (3 - 2 * pC);
+  camera.position.lerpVectors(camStart, camEnd, e);
+  look.set(0, 0, 0).lerp(lookEnd, e);
+  ringNormal.set(0, 0, 1).applyQuaternion(ring.getWorldQuaternion(q));
+  camera.up.copy(UP).lerp(ringNormal, e).normalize();
+  camera.lookAt(look);
+  camera.fov = lerp(42, 62, e); camera.updateProjectionMatrix();
+  camera.updateMatrixWorld();
+  uni.uKeyDir.value.copy(KEY_DIR).transformDirection(camera.matrixWorldInverse);
+  uni.uRimDir.value.copy(RIM_DIR).transformDirection(camera.matrixWorldInverse);
+  uni.uCoreView.value.copy(CORE).applyMatrix4(camera.matrixWorldInverse);
+
+  // ---- DOM pieces fly to their slot on the belt (only the ones in flight are touched) ----
+  const W = innerWidth, H = innerHeight;
+  for (const p of pieces) {
+    const k = clamp((pB - p.delay) / 0.45);
+    if (k <= 0) { if (p.state) { p.el.style.transform = ''; p.el.style.opacity = ''; p.state = 0; } continue; }
+    if (k >= 1) { if (p.state !== 2) { p.el.style.opacity = '0'; p.state = 2; } continue; }
+    p.state = 1;
+    const a = p.ringAng + ringPhase * 3;
+    v3.set(Math.cos(a) * R * p.ringR, Math.sin(a) * R * p.ringR, p.ringH * thick);
+    ring.localToWorld(v3);
+    const behind = v3.z < 0;
+    v3.project(camera);
+    const tx = (v3.x + 1) / 2 * W, ty = (1 - v3.y) / 2 * H;
+    const ke = k * k * (3 - 2 * k);
+    // curve the path: overshoot sideways so pieces swirl instead of sliding straight
+    const sw = Math.sin(ke * Math.PI) * 120 * (p.ringR - 1.03) * 8;
+    const x = lerp(p.hx, tx, ke) - p.hx + sw;
+    const y = lerp(p.hy, ty, ke) - p.hy;
+    const s = lerp(1, behind ? 0.35 : 0.6, ke);
+    const op = (1 - smooth(0.7, 1, k)) * (behind ? lerp(1, 0.45, ke) : 1);
+    p.el.style.transform = `translate3d(${x.toFixed(1)}px,${y.toFixed(1)}px,0) rotate(${(p.spin * ke).toFixed(1)}deg) scale(${s.toFixed(3)})`;
+    p.el.style.opacity = op.toFixed(3);
+  }
+  const sh = smooth(0.1, 0.4, pB);
+  for (const s of shells) { s.style.opacity = 1 - sh; s.style.transform = `scale(${1 - sh * 0.15}) rotate(${sh * 4}deg)`; }
+
+  // once the page is gone, nothing needs to hide behind it (and the lab owns the back canvas)
+  frontPlane.constant = pC > 0.001 ? 1e4 : 0;
+  if (pC <= 0.001) { backPlane.constant = 0; uni.uSide.value = -1; backR.render(scene, camera); }
+  else if (!labOn) backR.clear();
+  uni.uSide.value = pC > 0.001 ? 0 : 1;
+  frontR.render(scene, camera);
+}
+
+// ---------- loop ----------
+let frontOn = true, labOn = false;
+backR.compile(lab, labCam); // no shader-compile hitch when the lab first appears
+
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now; t += dt;
+  tickFps(now);
+  g += (gTarget - g) * Math.min(1, dt * 4.5);
+  mouse.sx += (mouse.x - mouse.sx) * dt * 2; mouse.sy += (mouse.y - mouse.sy) * dt * 2;
+  const prog = clamp(g / ACT1), pD = smooth(0.84, 0.985, g);
+
+  if (pD < 0.999) { actOne(dt, prog, pD > 0.001); frontOn = true; }
+  else if (frontOn) { frontR.clear(); frontOn = false; }
+  frontCanvas.style.opacity = (1 - pD).toFixed(3);
+  pageEl.style.visibility = pD > 0.001 ? 'hidden' : ''; // also covers a reload that lands straight in the lab
+
+  if (pD > 0.001) { labFrame(dt, pD); labOn = true; }
+  else if (labOn) { backR.clear(); labOn = false; }
+  backCanvas.style.opacity = pD > 0.001 ? '1' : '';
+
+  const active = pD > 0.97;
+  if (active !== labActive) {
+    labActive = active;
+    document.documentElement.classList.toggle('in-lab', active);
+    labUI.setAttribute('aria-hidden', String(!active));
+    if (!active) endPointer();
+  }
+  labUI.classList.toggle('on', pD > 0.5);
+  labUI.style.opacity = smooth(0.8, 1, pD).toFixed(3);
+
+  hint.style.opacity = 1 - smooth(0.01, 0.06, prog);
+  railFill.style.height = (g * 100).toFixed(2) + '%';
+  const eo = smooth(0.86, 0.98, prog) * (1 - smooth(0, 0.45, pD));
+  end.style.opacity = eo;
+  end.style.pointerEvents = eo > 0.5 ? 'auto' : 'none';
+  end.style.transform = `scale(${lerp(0.92, 1, smooth(0.86, 0.98, prog)) + smooth(0, 0.45, pD) * 0.3})`;
+
+  requestAnimationFrame(frame);
+}
+
+document.fonts.ready.then(() => { measure(); readScroll(); g = gTarget; requestAnimationFrame(frame); });
+</script>
+</body>
+</html>

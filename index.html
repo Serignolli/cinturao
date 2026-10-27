@@ -96,6 +96,14 @@
     padding: 0.45rem 0.7rem;
   }
   #hud b { color: var(--ice); font-weight: 600; min-width: 5ch; }
+  .credit {
+    position: fixed; right: 14px; bottom: 14px; z-index: 5;
+    font-size: 12px; color: var(--muted); letter-spacing: 0.02em;
+    background: rgba(7, 6, 10, 0.75); border: 1px solid var(--line); border-radius: 3px;
+    padding: 0.45rem 0.7rem;
+  }
+  .credit a { color: var(--rust-soft); font-weight: 600; text-decoration: none; }
+  .credit a:hover { text-decoration: underline; }
 
   #end {
     position: fixed; inset: 0; z-index: 3;
@@ -194,6 +202,7 @@
 <div id="hud">
   <b id="fps">-- fps</b>
 </div>
+<footer class="credit">Desenvolvido por <a href="https://serignolli.com" target="_blank" rel="noopener noreferrer">Serignolli</a></footer>
 
 <div id="end">
   <h2>Engolido<span>.</span></h2>
@@ -1423,7 +1432,7 @@ function aimWell() {
   return false;
 }
 addEventListener('pointerdown', e => {
-  if (!labActive || e.button > 0 || e.target.closest('.lab-tools, .lab-note, #hud')) return;
+  if (!labActive || e.button > 0 || e.target.closest('.lab-tools, .lab-note, #hud, .credit')) return;
   e.preventDefault(); // no text selection or native drag while playing
   ptr.x = ptr.px = e.clientX; ptr.y = ptr.py = e.clientY;
   idle = 0;
